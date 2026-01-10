@@ -43,7 +43,7 @@ export default function Toast({ message, type = 'info', onClose, duration = 3000
   };
 
   return (
-    <div className="fixed top-20 right-5 z-50 animate-in slide-in-from-right fade-in duration-300">
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top fade-in duration-300">
       <div className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg border backdrop-blur-sm ${colors[type]}`}>
         <span className="flex-shrink-0">{icons[type]}</span>
         <span className="text-xs font-medium leading-tight">{message}</span>

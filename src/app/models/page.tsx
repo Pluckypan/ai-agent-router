@@ -177,7 +177,7 @@ export default function ModelsPage() {
           <div className="mb-5 bg-white/70 backdrop-blur-sm shadow-md rounded-2xl border border-emerald-100/50 p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-800">一键拉取模型列表</h2>
+                <h2 className="text-sm font-bold text-slate-800">快捷拉取</h2>
                 <p className="text-xs text-slate-500 mt-0.5">从供应商 API 自动拉取可用模型</p>
               </div>
             </div>
