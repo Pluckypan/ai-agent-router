@@ -8,7 +8,7 @@ import http from 'http';
 const program = new Command();
 
 program
-  .name('ai-agent-router')
+  .name('aar')
   .description('AI Agent Router - Unified gateway for managing multiple AI model providers')
   .version('0.1.0');
 

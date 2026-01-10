@@ -4,7 +4,7 @@
   "description": "A unified API gateway for managing multiple AI model providers (Anthropic, OpenAI, Gemini, etc.)",
   "main": "dist/cli/index.js",
   "bin": {
-    "ai-agent-router": "./dist/cli/index.js"
+    "aar": "./dist/cli/index.js"
   },
   "scripts": {
     "dev": "next dev",

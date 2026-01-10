@@ -23,7 +23,7 @@ npm install -g ai-agent-router
 ### 启动网关
 
 ```bash
-ai-agent-router start
+aar start
 ```
 
 默认在 `http://localhost:3000` 启动，你可以通过浏览器访问 Web 管理界面。
@@ -32,20 +32,20 @@ ai-agent-router start
 
 ```bash
 # 指定端口
-ai-agent-router start --port 8080
+aar start --port 8080
 
 # 指定主机名
-ai-agent-router start --hostname 0.0.0.0
+aar start --hostname 0.0.0.0
 ```
 
 ### 配置管理
 
 ```bash
 # 获取配置
-ai-agent-router config --get port
+aar config --get port
 
 # 设置配置
-ai-agent-router config --set port 8080
+aar config --set port 8080
 ```
 
 ## Web 管理界面
@@ -131,7 +131,7 @@ npm start
 ### 项目结构
 
 ```
-ai-agent-router/
+aar/
 ├── src/
 │   ├── server/          # 网关服务器
 │   │   ├── gateway.ts   # 核心网关逻辑

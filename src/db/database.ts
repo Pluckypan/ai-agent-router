@@ -2,8 +2,9 @@ import Database from 'better-sqlite3';
 import { CREATE_TABLES_SQL } from './schema';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
-const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), 'gateway.db');
+const DB_PATH = process.env.DB_PATH || path.join(os.homedir(), '.aar', 'gateway.db');
 
 let dbInstance: Database.Database | null = null;
 
