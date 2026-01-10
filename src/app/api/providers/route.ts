@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/db/database';
 import { getAllProviders, getProviderById, createProvider, updateProvider, deleteProvider } from '@/db/queries';
+import { encryptApiKey, decryptApiKey } from '@/server/crypto';
 
 // Ensure Node.js runtime (required for SQLite)
 export const runtime = 'nodejs';
@@ -21,10 +22,10 @@ export async function GET(request: NextRequest) {
           { status: 404 }
         );
       }
-      // Return with API key if requested (for editing)
+      // Return with decrypted API key if requested (for editing)
       return NextResponse.json({
         ...provider,
-        api_key: includeKey ? provider.api_key : '***',
+        api_key: includeKey ? decryptApiKey(provider.api_key) : '***',
       });
     }
 
@@ -58,11 +59,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const encryptedKey = encryptApiKey(api_key.trim());
     const provider = createProvider({
       name,
       protocol,
       base_url,
-      api_key: api_key.trim(),
+      api_key: encryptedKey,
     });
 
     return NextResponse.json({
@@ -104,7 +106,7 @@ export async function PUT(request: NextRequest) {
     if (protocol !== undefined) updateData.protocol = protocol;
     if (base_url !== undefined) updateData.base_url = base_url;
     if (api_key !== undefined && api_key !== null && api_key.trim() !== '') {
-      updateData.api_key = api_key.trim();
+      updateData.api_key = encryptApiKey(api_key.trim());
     }
 
     const provider = updateProvider(id, updateData);

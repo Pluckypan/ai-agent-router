@@ -50,27 +50,53 @@ export class OpenAIAdapter implements ProviderAdapter {
 
   async listModels(provider: Provider): Promise<Array<{ id: string; name: string }>> {
     const apiKey = decryptApiKey(provider.api_key);
-    const baseUrl = provider.base_url || 'https://api.openai.com/v1';
+    let baseUrl = provider.base_url || 'https://api.openai.com/v1';
+    
+    // Ensure baseUrl doesn't end with / and has /v1
+    baseUrl = baseUrl.trim().replace(/\/+$/, ''); // Remove trailing slashes
+    if (!baseUrl.endsWith('/v1')) {
+      baseUrl = baseUrl.endsWith('/') ? baseUrl + 'v1' : baseUrl + '/v1';
+    }
+    
+    const url = `${baseUrl}/models`;
+    
+    console.log('[OpenAI] Fetching models:', {
+      baseUrl: provider.base_url,
+      normalizedBaseUrl: baseUrl,
+      url,
+      apiKeyPrefix: apiKey.substring(0, 10) + '...',
+      apiKeyLength: apiKey.length,
+    });
 
     try {
-      const response = await fetch(`${baseUrl}/models`, {
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('[OpenAI] Response status:', response.status, response.statusText);
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch models: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('[OpenAI] Error response body:', errorText);
+        throw new Error(`Failed to fetch models: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
       }
 
       const data = await response.json();
+      console.log('[OpenAI] Fetched models count:', data.data?.length || 0);
       return (data.data || []).map((model: any) => ({
         id: model.id,
         name: model.id, // OpenAI uses model ID as name
       }));
     } catch (error) {
-      console.error('Error fetching OpenAI models:', error);
+      console.error('[OpenAI] Error fetching models:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        url,
+        baseUrl: provider.base_url,
+      });
       throw error;
     }
   }

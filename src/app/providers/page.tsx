@@ -13,13 +13,25 @@ interface Provider {
   api_key: string;
 }
 
+interface Model {
+  id: number;
+  provider_id: number;
+  name: string;
+  model_id: string;
+  enabled: boolean;
+}
+
 export default function ProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Provider | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [testingProviderId, setTestingProviderId] = useState<number | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [testing, setTesting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     protocol: 'openai',
@@ -31,6 +43,7 @@ export default function ProvidersPage() {
 
   useEffect(() => {
     loadProviders();
+    loadModels();
   }, []);
 
   const loadProviders = async () => {
@@ -42,6 +55,16 @@ export default function ProvidersPage() {
       console.error('Failed to load providers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadModels = async () => {
+    try {
+      const res = await fetch('/api/models');
+      const data = await res.json();
+      setModels(data);
+    } catch (error) {
+      console.error('Failed to load models:', error);
     }
   };
 
@@ -151,6 +174,58 @@ export default function ProvidersPage() {
     setDeleteId(null);
   };
 
+  const handleTestConnection = (providerId: number) => {
+    const providerModels = models.filter(m => m.provider_id === providerId);
+    if (providerModels.length === 0) {
+      showToast('该供应商下没有模型，请先添加或拉取模型', 'error');
+      return;
+    }
+    setTestingProviderId(providerId);
+    setSelectedModelId('');
+  };
+
+  const startTest = async () => {
+    if (!testingProviderId || !selectedModelId) {
+      showToast('请选择要测试的模型', 'error');
+      return;
+    }
+
+    setTesting(true);
+    try {
+      const res = await fetch('/api/providers/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider_id: testingProviderId,
+          model_id: parseInt(selectedModelId),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || '连接成功，模型可用', 'success');
+      } else {
+        showToast(data.error || '连接失败', 'error');
+      }
+    } catch (error: any) {
+      console.error('Failed to test connection:', error);
+      showToast('测试连接失败: ' + (error.message || '未知错误'), 'error');
+    } finally {
+      setTesting(false);
+      setTestingProviderId(null);
+      setSelectedModelId('');
+    }
+  };
+
+  const cancelTest = () => {
+    setTestingProviderId(null);
+    setSelectedModelId('');
+  };
+
+  const getProviderModels = (providerId: number) => {
+    return models.filter(m => m.provider_id === providerId);
+  };
+
   if (loading) {
     return (
       <>
@@ -234,6 +309,12 @@ export default function ProvidersPage() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-xs font-medium">
                         <div className="flex items-center justify-end space-x-3">
+                          <button
+                            onClick={() => handleTestConnection(provider.id)}
+                            className="text-blue-600 hover:text-blue-700 font-medium transition-colors duration-300"
+                          >
+                            测试连接
+                          </button>
                           <button
                             onClick={() => handleEdit(provider)}
                             className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors duration-300"
@@ -381,6 +462,69 @@ export default function ProvidersPage() {
         cancelText="取消"
         type="danger"
       />
+
+      {/* Test Connection Modal */}
+      {testingProviderId && (
+        <div className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={cancelTest}></div>
+            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-emerald-100/50">
+              <div className="bg-white px-6 pt-5 pb-4 sm:p-6">
+                <div className="mb-5">
+                  <h3 className="text-base font-bold text-slate-800 mb-1">测试连接</h3>
+                  <p className="text-xs text-slate-500">选择一个模型进行连接测试</p>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">选择模型</label>
+                    <select
+                      value={selectedModelId}
+                      onChange={(e) => setSelectedModelId(e.target.value)}
+                      disabled={testing}
+                      className="block w-full rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-xs shadow-sm transition-all duration-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="">请选择模型</option>
+                      {getProviderModels(testingProviderId).map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name} ({model.model_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-5 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={cancelTest}
+                    disabled={testing}
+                    className="px-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-slate-400/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startTest}
+                    disabled={testing || !selectedModelId}
+                    className="px-4 py-1.5 border border-transparent rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+                  >
+                    {testing ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        测试中...
+                      </>
+                    ) : (
+                      '开始测试'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -155,8 +155,17 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    console.log('[Models API] Fetching models for provider:', {
+      providerId: provider_id,
+      providerName: provider.name,
+      protocol: provider.protocol,
+      baseUrl: provider.base_url,
+    });
+
     const adapter = getProviderAdapter(provider.protocol);
     const models = await adapter.listModels(provider);
+    
+    console.log('[Models API] Fetched models:', models.length);
 
     // Create or update models
     const results = [];
