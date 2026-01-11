@@ -17,15 +17,45 @@ export function getDatabase(): Database.Database {
         fs.mkdirSync(dbDir, { recursive: true });
       }
 
-      dbInstance = new Database(DB_PATH);
+      dbInstance = new Database(DB_PATH, {
+        // Add timeout for busy operations to avoid blocking
+        timeout: 5000,
+      });
       
       // Enable WAL mode for better concurrency
       dbInstance.pragma('journal_mode = WAL');
+      // Set busy timeout to handle concurrent access
+      dbInstance.pragma('busy_timeout = 5000');
       
-      // Initialize schema
-      dbInstance.exec(CREATE_TABLES_SQL);
+      // Initialize schema with error handling for concurrent access
+      try {
+        dbInstance.exec(CREATE_TABLES_SQL);
+      } catch (schemaError: any) {
+        // Ignore "table already exists" errors (concurrent initialization)
+        if (!schemaError.message.includes('already exists') && 
+            !schemaError.message.includes('duplicate')) {
+          throw schemaError;
+        }
+      }
     } catch (error: any) {
       console.error('Database initialization error:', error);
+      // Don't throw if it's a busy/locked error, retry might work
+      if (error.message && error.message.includes('database is locked')) {
+        // Wait a bit and retry once
+        setTimeout(() => {
+          if (!dbInstance) {
+            try {
+              dbInstance = new Database(DB_PATH, { timeout: 5000 });
+              dbInstance.pragma('journal_mode = WAL');
+              dbInstance.pragma('busy_timeout = 5000');
+            } catch (retryError) {
+              console.error('Database retry failed:', retryError);
+            }
+          }
+        }, 100);
+        // Return a temporary instance or throw
+        throw new Error(`Database is temporarily locked: ${error.message}`);
+      }
       throw new Error(`Failed to initialize database: ${error.message}`);
     }
   }

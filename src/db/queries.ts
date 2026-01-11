@@ -1,5 +1,5 @@
 import { getDatabase } from './database';
-import type { Provider, Model, RequestLog, Config } from './schema';
+import type { Provider, Model, RequestLog, Config, ServiceStatus } from './schema';
 
 // Provider queries
 export function getAllProviders(): Provider[] {
@@ -243,4 +243,73 @@ export function getAllConfig(): Record<string, string> {
     result[config.key] = config.value;
   }
   return result;
+}
+
+// Service status queries
+export function getServiceStatus(): ServiceStatus | null {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM service_status ORDER BY id DESC LIMIT 1').get() as ServiceStatus | null;
+}
+
+export function setServiceStatus(status: Omit<ServiceStatus, 'id' | 'updated_at'>): ServiceStatus {
+  const db = getDatabase();
+  // Delete old status records (keep only one)
+  db.prepare('DELETE FROM service_status').run();
+  
+  // Insert new status
+  const stmt = db.prepare(`
+    INSERT INTO service_status (status, port, pid, started_at, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+  `);
+  const result = stmt.run(
+    status.status,
+    status.port,
+    status.pid,
+    status.started_at
+  );
+  return db.prepare('SELECT * FROM service_status WHERE id = ?').get(result.lastInsertRowid) as ServiceStatus;
+}
+
+export function updateServiceStatus(updates: Partial<Omit<ServiceStatus, 'id' | 'updated_at'>>): ServiceStatus | null {
+  const db = getDatabase();
+  const current = getServiceStatus();
+  if (!current) {
+    return null;
+  }
+
+  const updateFields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.status !== undefined) {
+    updateFields.push('status = ?');
+    values.push(updates.status);
+  }
+  if (updates.port !== undefined) {
+    updateFields.push('port = ?');
+    values.push(updates.port);
+  }
+  if (updates.pid !== undefined) {
+    updateFields.push('pid = ?');
+    values.push(updates.pid);
+  }
+  if (updates.started_at !== undefined) {
+    updateFields.push('started_at = ?');
+    values.push(updates.started_at);
+  }
+
+  if (updateFields.length === 0) {
+    return current;
+  }
+
+  updateFields.push("updated_at = datetime('now')");
+  values.push(current.id);
+
+  const stmt = db.prepare(`UPDATE service_status SET ${updateFields.join(', ')} WHERE id = ?`);
+  stmt.run(...values);
+  return getServiceStatus();
+}
+
+export function clearServiceStatus(): void {
+  const db = getDatabase();
+  db.prepare('DELETE FROM service_status').run();
 }

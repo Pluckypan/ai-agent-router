@@ -42,6 +42,15 @@ export interface Config {
   updated_at: string;
 }
 
+export interface ServiceStatus {
+  id: number;
+  status: 'running' | 'stopped';
+  port: number;
+  pid: number | null;
+  started_at: string | null;
+  updated_at: string;
+}
+
 export const CREATE_TABLES_SQL = `
 -- Providers table
 CREATE TABLE IF NOT EXISTS providers (
@@ -87,6 +96,16 @@ CREATE TABLE IF NOT EXISTS request_logs (
 CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Service status table
+CREATE TABLE IF NOT EXISTS service_status (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  status TEXT NOT NULL CHECK(status IN ('running', 'stopped')),
+  port INTEGER NOT NULL,
+  pid INTEGER,
+  started_at DATETIME,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

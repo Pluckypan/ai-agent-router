@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import next from 'next';
-import { parse } from 'url';
-import http from 'http';
+import { GatewayServer } from '../server/gateway-server';
+import { getDatabase } from '../db/database';
+import { getConfig, setConfig } from '../db/queries';
 
 const program = new Command();
 
@@ -14,70 +14,47 @@ program
 
 program
   .command('start')
-  .description('Start the API gateway server')
+  .description('Start the API gateway server (gateway only, no Web UI)')
   .option('-p, --port <port>', 'Port to listen on', '3000')
   .option('--hostname <hostname>', 'Hostname to listen on', 'localhost')
   .action(async (options) => {
     const port = parseInt(options.port || '3000');
     const hostname = options.hostname || 'localhost';
 
-    // Initialize database
-    const { getDatabase } = require('../db/database');
-    getDatabase(); // Initialize on startup
+    // Initialize database to get config
+    try {
+      getDatabase();
+    } catch (error: any) {
+      console.error('Failed to initialize database:', error);
+      process.exit(1);
+    }
 
-    // Check if port is already in use
-    const testServer = http.createServer();
-    await new Promise<void>((resolve, reject) => {
-      testServer.listen(port, hostname, () => {
-        testServer.close(() => resolve());
-      });
-      testServer.on('error', (err: any) => {
-        if (err.code === 'EADDRINUSE') {
-          console.error(`Error: Port ${port} is already in use.`);
-          process.exit(1);
-        }
-        reject(err);
-      });
+    // Get API key from config if configured
+    const apiKeyConfig = getConfig('api_key');
+    const apiKey = apiKeyConfig ? apiKeyConfig.value : undefined;
+
+    console.log(`Starting AI Agent Router Gateway Server`);
+    console.log(`  Port: ${port}`);
+    console.log(`  Hostname: ${hostname}`);
+    if (apiKey) {
+      console.log(`  API Key: Configured (authentication enabled)`);
+    } else {
+      console.log(`  API Key: Not configured (authentication disabled)`);
+    }
+
+    // Create and start gateway server
+    const server = new GatewayServer({
+      port,
+      hostname,
+      apiKey,
     });
 
-    console.log(`Starting AI Agent Router on http://${hostname}:${port}`);
-    console.log(`Web UI: http://${hostname}:${port}`);
-    console.log(`API Gateway: http://${hostname}:${port}/api/gateway`);
-
-    // Start Next.js server
-    const dev = process.env.NODE_ENV !== 'production';
-    const app = next({ dev, hostname, port });
-    const handle = app.getRequestHandler();
-
-    app.prepare().then(() => {
-      const server = http.createServer((req: any, res: any) => {
-        const parsedUrl = parse(req.url!, true);
-        handle(req, res, parsedUrl);
-      });
-
-      server.listen(port, hostname, () => {
-        console.log(`✓ Server ready on http://${hostname}:${port}`);
-      });
-
-      // Graceful shutdown
-      process.on('SIGTERM', () => {
-        console.log('SIGTERM signal received: closing HTTP server');
-        server.close(() => {
-          console.log('HTTP server closed');
-          require('../db/database').closeDatabase();
-          process.exit(0);
-        });
-      });
-
-      process.on('SIGINT', () => {
-        console.log('\nSIGINT signal received: closing HTTP server');
-        server.close(() => {
-          console.log('HTTP server closed');
-          require('../db/database').closeDatabase();
-          process.exit(0);
-        });
-      });
-    });
+    try {
+      await server.start();
+    } catch (error: any) {
+      console.error(`Failed to start gateway server: ${error.message}`);
+      process.exit(1);
+    }
   });
 
 program
@@ -86,7 +63,13 @@ program
   .option('--get <key>', 'Get configuration value')
   .option('--set <key> <value>', 'Set configuration value')
   .action(async (options) => {
-    const { getConfig, setConfig } = require('../db/queries');
+    // Initialize database
+    try {
+      getDatabase();
+    } catch (error: any) {
+      console.error('Failed to initialize database:', error);
+      process.exit(1);
+    }
     
     if (options.get) {
       const config = getConfig(options.get);
