@@ -2,14 +2,15 @@
   "name": "ai-agent-router",
   "version": "0.1.0",
   "description": "A unified API gateway for managing multiple AI model providers (Anthropic, OpenAI, Gemini, etc.)",
-  "main": "dist/cli/index.js",
+  "main": "dist/src/cli/index.js",
   "bin": {
-    "aar": "./dist/cli/index.js"
+    "aar": "./dist/src/cli/index.js"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build && tsc",
-    "start": "node dist/cli/index.js start",
+    "postbuild": "node scripts/fix-esm-imports.js",
+    "start": "node dist/src/cli/index.js start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },

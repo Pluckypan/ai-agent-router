@@ -145,7 +145,7 @@ class ServiceManager {
     this.isStarting = true;
 
     try {
-      const cliPath = path.join(process.cwd(), 'dist', 'cli', 'index.js');
+      const cliPath = path.join(process.cwd(), 'dist', 'src', 'cli', 'index.js');
       const tsCliPath = path.join(process.cwd(), 'src', 'cli', 'index.ts');
       
       let child: ChildProcess;
