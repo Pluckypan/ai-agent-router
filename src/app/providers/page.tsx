@@ -32,6 +32,7 @@ export default function ProvidersPage() {
   const [testingProviderId, setTestingProviderId] = useState<number | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>('');
   const [testing, setTesting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     protocol: 'openai',
@@ -182,6 +183,7 @@ export default function ProvidersPage() {
     }
     setTestingProviderId(providerId);
     setSelectedModelId('');
+    setSearchQuery('');
   };
 
   const startTest = async () => {
@@ -220,10 +222,19 @@ export default function ProvidersPage() {
   const cancelTest = () => {
     setTestingProviderId(null);
     setSelectedModelId('');
+    setSearchQuery('');
   };
 
   const getProviderModels = (providerId: number) => {
-    return models.filter(m => m.provider_id === providerId);
+    const providerModels = models.filter(m => m.provider_id === providerId);
+    if (!searchQuery.trim()) {
+      return providerModels;
+    }
+    const query = searchQuery.toLowerCase().trim();
+    return providerModels.filter(model =>
+      model.name.toLowerCase().includes(query) ||
+      model.model_id.toLowerCase().includes(query)
+    );
   };
 
   if (loading) {
@@ -475,6 +486,23 @@ export default function ProvidersPage() {
                   <p className="text-xs text-slate-500">选择一个模型进行连接测试</p>
                 </div>
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">搜索模型</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        disabled={testing}
+                        autoComplete="off"
+                        className="block w-full rounded-lg border border-slate-200 bg-white/80 pl-9 pr-3 py-2 text-xs shadow-sm transition-all duration-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        placeholder="输入模型名称或ID进行搜索..."
+                      />
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">选择模型</label>
                     <select
