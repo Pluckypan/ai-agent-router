@@ -30,6 +30,56 @@ export function getDatabase(): Database.Database {
       // Initialize schema with error handling for concurrent access
       try {
         dbInstance.exec(CREATE_TABLES_SQL);
+        
+        // Migration: Allow NULL model_id in request_logs table (for gateway requests)
+        // SQLite doesn't support ALTER COLUMN, so we need to recreate the table
+        try {
+          // Check if request_logs table exists and has NOT NULL constraint
+          const tableInfo = dbInstance.prepare("PRAGMA table_info(request_logs)").all() as any[];
+          const modelIdColumn = tableInfo.find(col => col.name === 'model_id');
+          
+          if (modelIdColumn && modelIdColumn.notnull === 1) {
+            // Table exists with NOT NULL constraint, need to migrate
+            console.log('[Database] Migrating request_logs table to allow NULL model_id...');
+            
+            // Create new table with NULL allowed
+            dbInstance.exec(`
+              CREATE TABLE IF NOT EXISTS request_logs_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_id INTEGER,
+                request_method TEXT NOT NULL,
+                request_path TEXT NOT NULL,
+                request_headers TEXT,
+                request_query TEXT,
+                request_body TEXT,
+                response_status INTEGER,
+                response_body TEXT,
+                response_time_ms INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE SET NULL
+              );
+              
+              -- Copy data from old table
+              INSERT INTO request_logs_new 
+              SELECT * FROM request_logs;
+              
+              -- Drop old table
+              DROP TABLE request_logs;
+              
+              -- Rename new table
+              ALTER TABLE request_logs_new RENAME TO request_logs;
+            `);
+            
+            console.log('[Database] Migration completed successfully');
+          }
+        } catch (migrationError: any) {
+          // Migration errors are not critical, just log them
+          // The table might already be migrated or in use
+          if (!migrationError.message.includes('no such table') && 
+              !migrationError.message.includes('already exists')) {
+            console.warn('[Database] Migration warning (non-critical):', migrationError.message);
+          }
+        }
       } catch (schemaError: any) {
         // Ignore "table already exists" errors (concurrent initialization)
         if (!schemaError.message.includes('already exists') && 

@@ -154,24 +154,48 @@ export function getEnabledModels(): Model[] {
 // Request log queries
 export function createRequestLog(log: Omit<RequestLog, 'id' | 'created_at'>): RequestLog {
   const db = getDatabase();
+  
+  // Try to insert with model_id (for regular requests)
+  // If model_id is null or doesn't exist, insert with NULL (for gateway requests)
   const stmt = db.prepare(`
     INSERT INTO request_logs (
       model_id, request_method, request_path, request_headers,
       request_query, request_body, response_status, response_body, response_time_ms
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(
-    log.model_id,
-    log.request_method,
-    log.request_path,
-    log.request_headers,
-    log.request_query,
-    log.request_body,
-    log.response_status,
-    log.response_body,
-    log.response_time_ms
-  );
-  return db.prepare('SELECT * FROM request_logs WHERE id = ?').get(result.lastInsertRowid) as RequestLog;
+  
+  try {
+    const result = stmt.run(
+      log.model_id || null, // Allow NULL for gateway requests
+      log.request_method,
+      log.request_path,
+      log.request_headers,
+      log.request_query,
+      log.request_body,
+      log.response_status,
+      log.response_body,
+      log.response_time_ms
+    );
+    return db.prepare('SELECT * FROM request_logs WHERE id = ?').get(result.lastInsertRowid) as RequestLog;
+  } catch (error: any) {
+    // If foreign key constraint fails, try again with NULL model_id
+    if (error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY' && log.model_id) {
+      console.warn(`[RequestLog] Foreign key constraint failed for model_id ${log.model_id}, retrying with NULL`);
+      const result = stmt.run(
+        null, // Use NULL for gateway requests
+        log.request_method,
+        log.request_path,
+        log.request_headers,
+        log.request_query,
+        log.request_body,
+        log.response_status,
+        log.response_body,
+        log.response_time_ms
+      );
+      return db.prepare('SELECT * FROM request_logs WHERE id = ?').get(result.lastInsertRowid) as RequestLog;
+    }
+    throw error;
+  }
 }
 
 export function getRequestLogs(limit: number = 100, offset: number = 0, modelId?: number): RequestLog[] {

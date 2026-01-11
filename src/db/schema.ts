@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS models (
 -- Request logs table
 CREATE TABLE IF NOT EXISTS request_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  model_id INTEGER NOT NULL,
+  model_id INTEGER,
   request_method TEXT NOT NULL,
   request_path TEXT NOT NULL,
   request_headers TEXT,

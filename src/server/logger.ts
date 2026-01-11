@@ -2,7 +2,7 @@ import { createRequestLog } from '@/db/queries';
 import { maskApiKey, maskToken } from './crypto';
 
 export interface LogRequest {
-  modelId: number;
+  modelId: number | null; // Allow null for gateway requests
   method: string;
   path: string;
   headers: Record<string, string>;

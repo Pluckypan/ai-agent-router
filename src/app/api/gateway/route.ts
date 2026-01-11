@@ -22,23 +22,7 @@ async function handleGatewayRequestDirect(
     getDatabase();
     const searchParams = request.nextUrl.searchParams;
     let modelId = searchParams.get('model') || searchParams.get('model_id');
-
-    // Try to get from body
-    if (!modelId) {
-      try {
-        const body = await request.json();
-        modelId = body.model || body.model_id;
-      } catch {
-        // Body might not be JSON
-      }
-    }
-
-    if (!modelId) {
-      return NextResponse.json(
-        { error: { message: 'Model ID not specified' } },
-        { status: 400 }
-      );
-    }
+    const providerName = searchParams.get('provider');
 
     // Get request body
     let body: any = null;
@@ -53,6 +37,19 @@ async function handleGatewayRequestDirect(
       // Body might not be JSON
     }
 
+    // Try to get from body
+    if (!modelId && body) {
+      modelId = body.model || body.model_id;
+    }
+    const bodyProvider = body?.provider;
+
+    if (!modelId) {
+      return NextResponse.json(
+        { error: { message: 'Model ID not specified' } },
+        { status: 400 }
+      );
+    }
+
     // Build gateway request
     const gatewayRequest = {
       method,
@@ -62,8 +59,9 @@ async function handleGatewayRequestDirect(
       body,
     };
 
-    // Handle the request
-    const response = await handleGatewayRequest(modelId, gatewayRequest);
+    // Handle the request (pass provider name if specified)
+    const finalProviderName = providerName || bodyProvider;
+    const response = await handleGatewayRequest(modelId, gatewayRequest, finalProviderName || undefined);
 
     // Return response
     return NextResponse.json(response.body, {

@@ -54,34 +54,9 @@ async function handleRequest(
     
     // Try to get model from query or path
     let modelId = searchParams.get('model') || searchParams.get('model_id');
+    const providerName = searchParams.get('provider');
     
-    // If not in query, try to extract from path (e.g., /v1/models/gpt-4/completions)
-    if (!modelId) {
-      const pathParts = path.split('/');
-      const modelsIndex = pathParts.indexOf('models');
-      if (modelsIndex >= 0 && pathParts[modelsIndex + 1]) {
-        modelId = pathParts[modelsIndex + 1];
-      }
-    }
-    
-    // If still no model, try to get from body
-    if (!modelId) {
-      try {
-        const body = await request.json();
-        modelId = body.model || body.model_id;
-      } catch {
-        // Body might not be JSON or might be empty
-      }
-    }
-
-    if (!modelId) {
-      return NextResponse.json(
-        { error: { message: 'Model ID not specified' } },
-        { status: 400 }
-      );
-    }
-
-    // Get request body
+    // Get request body first (needed for both model ID and provider)
     let body: any = null;
     try {
       if (method !== 'GET' && method !== 'HEAD') {
@@ -93,6 +68,28 @@ async function handleRequest(
     } catch {
       // Body might not be JSON
     }
+    
+    // If not in query, try to extract from path (e.g., /v1/models/gpt-4/completions)
+    if (!modelId) {
+      const pathParts = path.split('/');
+      const modelsIndex = pathParts.indexOf('models');
+      if (modelsIndex >= 0 && pathParts[modelsIndex + 1]) {
+        modelId = pathParts[modelsIndex + 1];
+      }
+    }
+    
+    // If still no model, try to get from body
+    if (!modelId && body) {
+      modelId = body.model || body.model_id;
+    }
+    const bodyProvider = body?.provider;
+
+    if (!modelId) {
+      return NextResponse.json(
+        { error: { message: 'Model ID not specified' } },
+        { status: 400 }
+      );
+    }
 
     // Build gateway request
     const gatewayRequest = {
@@ -103,8 +100,9 @@ async function handleRequest(
       body,
     };
 
-    // Handle the request
-    const response = await handleGatewayRequest(modelId, gatewayRequest);
+    // Handle the request (pass provider name if specified)
+    const finalProviderName = providerName || bodyProvider;
+    const response = await handleGatewayRequest(modelId, gatewayRequest, finalProviderName || undefined);
 
     // Return response
     return NextResponse.json(response.body, {
