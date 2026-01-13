@@ -1,6 +1,6 @@
 {
   "name": "ai-agent-router",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A unified API gateway for managing multiple AI model providers (Anthropic, OpenAI, Gemini, etc.)",
   "main": "dist/src/cli/index.js",
   "bin": {
