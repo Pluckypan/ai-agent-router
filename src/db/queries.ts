@@ -240,6 +240,21 @@ export function getRequestLogCount(modelId?: number): number {
   return (db.prepare('SELECT COUNT(*) as count FROM request_logs').get() as any).count;
 }
 
+export function deleteRequestLogs(ids: number[]): number {
+  if (ids.length === 0) return 0;
+  const db = getDatabase();
+  const placeholders = ids.map(() => '?').join(',');
+  const stmt = db.prepare(`DELETE FROM request_logs WHERE id IN (${placeholders})`);
+  const result = stmt.run(...ids);
+  return result.changes;
+}
+
+export function deleteAllRequestLogs(): number {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM request_logs').run();
+  return result.changes;
+}
+
 // Config queries
 export function getConfig(key: string): Config | null {
   const db = getDatabase();
