@@ -24,7 +24,7 @@ export interface Model {
 
 export interface RequestLog {
   id: number;
-  model_id: number;
+  model_id: number | null;
   request_method: string;
   request_path: string;
   request_headers: string; // JSON string

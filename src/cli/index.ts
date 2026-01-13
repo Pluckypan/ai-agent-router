@@ -3,6 +3,8 @@
 import { Command } from 'commander';
 import { spawn } from 'child_process';
 import path from 'path';
+import { getDatabase } from '../db/database';
+import { getConfig, setConfig } from '../db/queries';
 
 const program = new Command();
 
