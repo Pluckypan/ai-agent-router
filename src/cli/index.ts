@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name('aar')
   .description('AI Agent Router - Web UI for managing the API gateway')
-  .version('0.1.0');
+  .version('0.1.2');
 
 program
   .command('start')
