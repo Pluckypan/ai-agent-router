@@ -1,60 +1,66 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { GatewayServer } from '../server/gateway-server';
-import { getDatabase } from '../db/database';
-import { getConfig, setConfig } from '../db/queries';
+import { spawn } from 'child_process';
+import path from 'path';
 
 const program = new Command();
 
 program
   .name('aar')
-  .description('AI Agent Router - Unified gateway for managing multiple AI model providers')
+  .description('AI Agent Router - Web UI for managing the API gateway')
   .version('0.1.0');
 
 program
   .command('start')
-  .description('Start the API gateway server (gateway only, no Web UI)')
-  .option('-p, --port <port>', 'Port to listen on', '3000')
-  .option('--hostname <hostname>', 'Hostname to listen on', 'localhost')
+  .description('Start the Web UI management interface')
+  .option('-p, --port <port>', 'Port for Web UI', '9527')
   .action(async (options) => {
-    const port = parseInt(options.port || '3000');
-    const hostname = options.hostname || 'localhost';
+    const port = parseInt(options.port || '9527');
 
-    // Initialize database to get config
-    try {
-      getDatabase();
-    } catch (error: any) {
-      console.error('Failed to initialize database:', error);
-      process.exit(1);
-    }
-
-    // Get API key from config if configured
-    const apiKeyConfig = getConfig('api_key');
-    const apiKey = apiKeyConfig ? apiKeyConfig.value : undefined;
-
-    console.log(`Starting AI Agent Router Gateway Server`);
+    console.log(`Starting AI Agent Router Web UI`);
     console.log(`  Port: ${port}`);
-    console.log(`  Hostname: ${hostname}`);
-    if (apiKey) {
-      console.log(`  API Key: Configured (authentication enabled)`);
+    console.log(`  Access the UI at: http://localhost:${port}`);
+    console.log('');
+
+    // Start Web UI using Next.js
+    const isDev = process.env.NODE_ENV !== 'production';
+    let uiProcess: ReturnType<typeof spawn>;
+
+    if (isDev) {
+      // In development mode, use next dev
+      uiProcess = spawn('npm', ['run', 'dev', '--', '-p', port.toString()], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'inherit', 'inherit'],
+        env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1', PORT: port.toString() },
+      });
     } else {
-      console.log(`  API Key: Not configured (authentication disabled)`);
+      // In production mode, start the built Next.js app
+      const serverPath = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
+      uiProcess = spawn(process.execPath, [serverPath, 'start', '-p', port.toString()], {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'inherit', 'inherit'],
+        env: { ...process.env, PORT: port.toString(), NODE_ENV: 'production' },
+      });
     }
 
-    // Create and start gateway server
-    const server = new GatewayServer({
-      port,
-      hostname,
-      apiKey,
+    // Handle UI process exit
+    uiProcess.on('exit', (code) => {
+      console.log(`Web UI process exited with code ${code}`);
+      process.exit(code || 0);
     });
 
-    try {
-      await server.start();
-    } catch (error: any) {
-      console.error(`Failed to start gateway server: ${error.message}`);
+    uiProcess.on('error', (error) => {
+      console.error(`Failed to start Web UI: ${error.message}`);
       process.exit(1);
-    }
+    });
+
+    // Keep the process alive
+    process.on('SIGINT', () => {
+      console.log('\nShutting down...');
+      uiProcess.kill('SIGTERM');
+      process.exit(0);
+    });
   });
 
 program

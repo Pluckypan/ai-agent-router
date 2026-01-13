@@ -93,7 +93,7 @@ export default function Home() {
       const res = await fetch('/api/config');
       const data = await res.json();
       setConfig({
-        port: data.port || '3000',
+        port: data.port || '1357',
         api_key: data.api_key || '',
       });
     } catch (error) {
@@ -382,10 +382,10 @@ export default function Home() {
                     onChange={(e) => setConfig({ ...config, port: e.target.value })}
                     autoComplete="off"
                     className="block w-full rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-xs shadow-sm transition-all duration-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 focus:ring-offset-1"
-                    placeholder="3000"
+                    placeholder="1357"
                   />
                   <p className="mt-1 text-xs text-slate-400">
-                    提示：如果 Web UI 运行在 3000 端口，建议将服务端口设置为 3001 或其他端口以避免冲突
+                    提示：API 网关默认端口为 1357
                   </p>
                 </div>
 

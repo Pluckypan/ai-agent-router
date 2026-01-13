@@ -131,14 +131,6 @@ class ServiceManager {
     // Check port availability with more details
     const portCheck = await this.checkPortInUse(port);
     if (portCheck.inUse) {
-      // In development, if port 3000 is in use, suggest using a different port
-      const isDev = process.env.NODE_ENV !== 'production';
-      if (isDev && port === 3000) {
-        return { 
-          status: 'stopped', 
-          error: `Port 3000 is already in use (likely by the development server). Please configure a different port (e.g., 3001) in the settings.` 
-        };
-      }
       return { status: 'stopped', error: portCheck.processInfo || `Port ${port} is already in use` };
     }
 
