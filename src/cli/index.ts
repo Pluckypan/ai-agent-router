@@ -3,15 +3,24 @@
 import { Command } from 'commander';
 import { spawn } from 'child_process';
 import path from 'path';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { getDatabase } from '../db/database';
 import { getConfig, setConfig } from '../db/queries';
+
+// 获取 package.json 中的版本号
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJsonPath = join(__dirname, '../..', 'package.json');
+const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
 const program = new Command();
 
 program
   .name('aar')
   .description('AI Agent Router - Web UI for managing the API gateway')
-  .version('0.1.5');
+  .version(packageJson.version);
 
 program
   .command('start')

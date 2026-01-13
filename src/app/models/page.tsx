@@ -33,6 +33,8 @@ export default function ModelsPage() {
   const [fetchProviderId, setFetchProviderId] = useState<number | null>(null);
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
   const [formData, setFormData] = useState({
     provider_id: '',
     name: '',
@@ -44,6 +46,15 @@ export default function ModelsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // 计算分页数据
+  const paginatedModels = (() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredModels.slice(startIndex, endIndex);
+  })();
+
+  const totalPages = Math.ceil(filteredModels.length / pageSize);
 
   const filterModels = useCallback(() => {
     let filtered = [...models];
@@ -66,6 +77,11 @@ export default function ModelsPage() {
 
     setFilteredModels(filtered);
   }, [models, selectedProviderId, searchQuery]);
+
+  // 筛选或搜索时重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedProviderId, searchQuery]);
 
   useEffect(() => {
     filterModels();
@@ -285,13 +301,14 @@ export default function ModelsPage() {
             {/* 结果统计 */}
             {(selectedProviderId !== null || searchQuery.trim()) && (
               <div className="mt-3 text-xs text-slate-500">
-                显示 {filteredModels.length} / {models.length} 个模型
+                显示 {filteredModels.length} 个模型，第 {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredModels.length)} 个
               </div>
             )}
           </div>
 
           <div className="bg-white/70 backdrop-blur-sm shadow-md rounded-2xl border border-emerald-100/50 overflow-hidden">
-            <table className="min-w-full divide-y divide-slate-100">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100">
               <thead className="bg-emerald-50/30">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -312,7 +329,7 @@ export default function ModelsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
-                {filteredModels.length === 0 ? (
+                {paginatedModels.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-12 text-center">
                       <div className="text-slate-400">
@@ -346,7 +363,7 @@ export default function ModelsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredModels.map((model) => (
+                  paginatedModels.map((model) => (
                     <tr key={model.id} className="hover:bg-emerald-50/20 transition-colors duration-300">
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="text-xs font-medium text-slate-800">{model.name}</div>
@@ -389,7 +406,55 @@ export default function ModelsPage() {
                   ))
                 )}
               </tbody>
-            </table>
+              </table>
+            </div>
+
+            {/* 分页控件 */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between px-4 py-3 bg-emerald-50/20 border-t border-emerald-100/50">
+                <div className="text-xs text-slate-600">
+                  第 <span className="font-semibold text-slate-800">{currentPage}</span> / {totalPages} 页
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  >
+                    上一页
+                  </button>
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(page => {
+                        // 只显示当前页附近的页码
+                        const offset = Math.abs(page - currentPage);
+                        return offset < 2 || page === 1 || page === totalPages;
+                      })
+                      .sort((a, b) => a - b)
+                      .map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-8 h-8 font-semibold text-xs rounded-lg transition-all duration-300 ${
+                            currentPage === page
+                              ? 'bg-emerald-600 text-white shadow-md'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                  </div>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 bg-white hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  >
+                    下一页
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
