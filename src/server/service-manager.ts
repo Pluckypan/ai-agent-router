@@ -1,8 +1,8 @@
-import { spawn, ChildProcess, exec } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
-import { getServiceStatus, setServiceStatus, updateServiceStatus, clearServiceStatus } from '@/db/queries';
-import path from 'path';
-import fs from 'fs';
+import { getServiceStatus, setServiceStatus, updateServiceStatus, getConfig } from '@/db/queries';
+import { getDatabase } from '@/db/database';
+import { GatewayServer } from './gateway-server';
 import net from 'net';
 
 const execAsync = promisify(exec);
@@ -16,11 +16,11 @@ export interface ServiceStatusResponse {
 }
 
 class ServiceManager {
-  private childProcess: ChildProcess | null = null;
+  private gatewayServer: GatewayServer | null = null;
   private isStarting: boolean = false;
 
   /**
-   * Check if a process with the given PID exists
+   * Check if a process with given PID exists
    */
   private async checkProcessExists(pid: number): Promise<boolean> {
     try {
@@ -39,12 +39,12 @@ class ServiceManager {
   private async checkPortAvailable(port: number): Promise<boolean> {
     return new Promise((resolve) => {
       const server = net.createServer();
-      
+
       server.listen(port, () => {
         server.once('close', () => resolve(true));
         server.close();
       });
-      
+
       server.on('error', () => {
         resolve(false);
       });
@@ -57,12 +57,12 @@ class ServiceManager {
   private async checkPortInUse(port: number): Promise<{ inUse: boolean; processInfo?: string }> {
     return new Promise((resolve) => {
       const server = net.createServer();
-      
+
       server.listen(port, () => {
         server.once('close', () => resolve({ inUse: false }));
         server.close();
       });
-      
+
       server.on('error', (err: any) => {
         if (err.code === 'EADDRINUSE') {
           // Try to get process info
@@ -90,7 +90,7 @@ class ServiceManager {
    */
   async getStatus(): Promise<ServiceStatusResponse> {
     const dbStatus = getServiceStatus();
-    
+
     if (!dbStatus) {
       return { status: 'stopped' };
     }
@@ -114,7 +114,7 @@ class ServiceManager {
   }
 
   /**
-   * Start the gateway service
+   * Start gateway service
    */
   async start(port: number): Promise<ServiceStatusResponse> {
     // Prevent concurrent starts
@@ -128,7 +128,7 @@ class ServiceManager {
       return { status: 'running', error: 'Service is already running', port: currentStatus.port, pid: currentStatus.pid };
     }
 
-    // Check port availability with more details
+    // Check port availability
     const portCheck = await this.checkPortInUse(port);
     if (portCheck.inUse) {
       return { status: 'stopped', error: portCheck.processInfo || `Port ${port} is already in use` };
@@ -137,121 +137,33 @@ class ServiceManager {
     this.isStarting = true;
 
     try {
-      const cliPath = path.join(process.cwd(), 'dist', 'src', 'cli', 'index.js');
-      const tsCliPath = path.join(process.cwd(), 'src', 'cli', 'index.ts');
-      
-      let child: ChildProcess;
-
-      // Create isolated environment for child process
-      // Remove Next.js dev server specific env vars to avoid conflicts
-      const childEnv = { ...process.env };
-      // Remove PORT if it might conflict
-      if (childEnv.PORT && parseInt(childEnv.PORT) === 3000) {
-        delete childEnv.PORT;
-      }
-      // Remove Next.js specific env vars that might cause conflicts
-      delete childEnv.NEXT_TELEMETRY_DISABLED;
-      // Gateway server doesn't need Next.js, so we can use any NODE_ENV
-      childEnv.NODE_ENV = process.env.NODE_ENV || 'production';
-
-      // Check if compiled code exists
-      if (fs.existsSync(cliPath)) {
-        // Use compiled JavaScript
-        child = spawn(process.execPath, [cliPath, 'start', '-p', port.toString()], {
-          detached: false, // Keep attached for proper tracking
-          stdio: ['ignore', 'pipe', 'pipe'],
-          cwd: process.cwd(),
-          env: childEnv,
-        });
-      } else if (fs.existsSync(tsCliPath)) {
-        // In development, try to use tsx via npx
-        // Note: tsx should be installed as dev dependency for this to work
-        child = spawn('npx', ['--yes', 'tsx', tsCliPath, 'start', '-p', port.toString()], {
-          detached: false, // Keep attached for proper tracking
-          stdio: ['ignore', 'pipe', 'pipe'],
-          cwd: process.cwd(),
-          env: childEnv,
-          shell: true, // Use shell to resolve npx
-        });
-      } else {
+      // Initialize database
+      try {
+        getDatabase();
+      } catch (error: any) {
+        console.error('Failed to initialize database:', error);
         this.isStarting = false;
-        return { 
-          status: 'stopped', 
-          error: 'CLI not found. Please run "npm run build" first, or ensure src/cli/index.ts exists.' 
-        };
+        return { status: 'stopped', error: 'Failed to initialize database' };
       }
 
-      this.childProcess = child;
+      // Get API key from config if configured
+      const apiKeyConfig = getConfig('api_key');
+      const apiKey = apiKeyConfig ? apiKeyConfig.value : undefined;
 
-      // Collect error output for better error messages
-      let errorOutput = '';
-      let hasExited = false;
-      let exitCode: number | null = null;
-
-      // Handle process output (optional, for debugging)
-      // Use setImmediate to avoid blocking the event loop
-      child.stdout?.on('data', (data) => {
-        setImmediate(() => {
-          const output = data.toString();
-          // Only log if it's not empty and not just whitespace
-          if (output.trim()) {
-            console.log(`[Gateway Service] ${output}`);
-          }
-        });
+      // Create and start gateway server directly in-process
+      const server = new GatewayServer({
+        port,
+        hostname: 'localhost',
+        apiKey,
       });
 
-      child.stderr?.on('data', (data) => {
-        setImmediate(() => {
-          const errorText = data.toString();
-          console.error(`[Gateway Service Error] ${errorText}`);
-          errorOutput += errorText;
-        });
-      });
+      await server.start();
+      this.gatewayServer = server;
 
-      // Handle process exit
-      child.on('exit', (code, signal) => {
-        hasExited = true;
-        exitCode = code;
-        console.log(`[Gateway Service] Process exited with code ${code}, signal ${signal}`);
-        this.childProcess = null;
-        this.isStarting = false;
-        
-        // Update database status
-        updateServiceStatus({ status: 'stopped', pid: null });
-      });
-
-      // Wait a bit to see if process starts successfully
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Check if process exited during startup
-      if (hasExited || child.killed || child.exitCode !== null) {
-        this.isStarting = false;
-        this.childProcess = null;
-        
-        // Extract meaningful error message
-        let errorMessage = 'Service failed to start';
-        if (errorOutput) {
-          // Try to extract the main error message
-          const errorMatch = errorOutput.match(/Error: ([^\n]+)/);
-          if (errorMatch) {
-            errorMessage = errorMatch[1];
-          } else if (errorOutput.includes('production build')) {
-            errorMessage = 'Production build not found. Please run "npm run build" first, or use development mode.';
-          } else {
-            // Use first meaningful line of error
-            const lines = errorOutput.split('\n').filter(line => line.trim());
-            if (lines.length > 0) {
-              errorMessage = lines[0].substring(0, 200); // Limit length
-            }
-          }
-        }
-        
-        return { status: 'stopped', error: errorMessage };
-      }
-
-      // Save status to database
-      const pid = child.pid || null;
+      // Use current process PID
+      const pid = process.pid;
       const startedAt = new Date().toISOString();
+
       setServiceStatus({
         status: 'running',
         port,
@@ -261,6 +173,8 @@ class ServiceManager {
 
       this.isStarting = false;
 
+      console.log(`Gateway server started on port ${port}`);
+
       return {
         status: 'running',
         port,
@@ -269,7 +183,8 @@ class ServiceManager {
       };
     } catch (error: any) {
       this.isStarting = false;
-      this.childProcess = null;
+      this.gatewayServer = null;
+      console.error(`Failed to start gateway service: ${error.message}`);
       return { status: 'stopped', error: error.message || 'Failed to start service' };
     }
   }
@@ -279,18 +194,18 @@ class ServiceManager {
    */
   async stop(): Promise<ServiceStatusResponse> {
     const currentStatus = await this.getStatus();
-    
+
     if (currentStatus.status === 'stopped') {
       return { status: 'stopped' };
     }
 
     try {
-      // If we have a reference to the child process, kill it
-      if (this.childProcess) {
-        this.childProcess.kill('SIGTERM');
-        this.childProcess = null;
-      } else if (currentStatus.pid) {
-        // Try to kill by PID
+      // If we have a reference to gateway server, stop it
+      if (this.gatewayServer) {
+        await this.gatewayServer.stop();
+        this.gatewayServer = null;
+      } else if (currentStatus.pid && currentStatus.pid !== process.pid) {
+        // Only try to kill by PID if it's a different process
         try {
           process.kill(currentStatus.pid, 'SIGTERM');
         } catch (error) {

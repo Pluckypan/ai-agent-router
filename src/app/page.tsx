@@ -124,17 +124,19 @@ export default function Home() {
 
   const handleStart = async () => {
     if (starting || serviceStatus.status === 'running') return;
-    
+
     setStarting(true);
     try {
-      const port = config.port ? parseInt(config.port, 10) : undefined;
+      // Use default port if not configured
+      const port = config.port ? parseInt(config.port, 10) : 1357;
+
       const res = await fetch('/api/service/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port }),
       });
       const data = await res.json();
-      
+
       if (data.error) {
         showToast(`启动失败: ${data.error}`, 'error');
       } else {

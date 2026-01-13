@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     // Initialize database on request (safer than module load)
     getDatabase();
-    
+
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
 
@@ -39,18 +39,20 @@ export async function POST(request: NextRequest) {
   try {
     // Initialize database on request
     getDatabase();
-    
+
     const body = await request.json();
     const { key, value } = body;
 
-    if (!key || value === undefined) {
+    if (!key) {
       return NextResponse.json(
-        { error: 'Key and value are required' },
+        { error: 'Key is required' },
         { status: 400 }
       );
     }
 
-    const config = setConfig(key, typeof value === 'string' ? value : JSON.stringify(value));
+    // Allow value to be null, undefined, or empty string (save as empty string)
+    const config = setConfig(key, (value === undefined || value === null) ? '' : typeof value === 'string' ? value : JSON.stringify(value));
+
     return NextResponse.json(config);
   } catch (error: any) {
     console.error('Config POST API error:', error);

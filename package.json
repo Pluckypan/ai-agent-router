@@ -7,7 +7,7 @@
     "aar": "./dist/src/cli/index.js"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 9527",
     "build": "next build && tsc",
     "postbuild": "node scripts/fix-esm-imports.js",
     "start": "node dist/src/cli/index.js start",
