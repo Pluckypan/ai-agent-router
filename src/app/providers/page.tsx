@@ -226,7 +226,8 @@ export default function ProvidersPage() {
   };
 
   const getProviderModels = (providerId: number) => {
-    const providerModels = models.filter(m => m.provider_id === providerId);
+    // 仅显示已启动的模型
+    const providerModels = models.filter(m => m.provider_id === providerId && m.enabled);
     if (!searchQuery.trim()) {
       return providerModels;
     }
@@ -505,19 +506,30 @@ export default function ProvidersPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">选择模型</label>
-                    <select
-                      value={selectedModelId}
-                      onChange={(e) => setSelectedModelId(e.target.value)}
-                      disabled={testing}
-                      className="block w-full rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-xs shadow-sm transition-all duration-300 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="">请选择模型</option>
-                      {getProviderModels(testingProviderId).map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name} ({model.model_id})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="border border-slate-200 rounded-lg bg-white/80 max-h-48 overflow-y-auto">
+                      {getProviderModels(testingProviderId).length === 0 ? (
+                        <div className="px-3 py-6 text-center">
+                          <p className="text-xs text-slate-400">没有找到可用的模型</p>
+                        </div>
+                      ) : (
+                        getProviderModels(testingProviderId).slice(0, 5).map((model) => (
+                          <button
+                            key={model.id}
+                            type="button"
+                            onClick={() => setSelectedModelId(model.id.toString())}
+                            disabled={testing}
+                            className={`w-full text-left px-3 py-2.5 text-xs font-medium border-b border-slate-100 last:border-0 hover:bg-emerald-50/50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                              selectedModelId === model.id.toString()
+                                ? 'bg-emerald-100/50 text-emerald-700'
+                                : 'text-slate-700'
+                            }`}
+                          >
+                            <div>{model.name}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">{model.model_id}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5 flex items-center justify-end space-x-2">
