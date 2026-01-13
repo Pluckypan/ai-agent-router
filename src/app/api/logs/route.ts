@@ -4,6 +4,7 @@ import { getRequestLogs, getRequestLogById, getRequestLogCount } from '@/db/quer
 
 // Ensure Node.js runtime (required for SQLite)
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

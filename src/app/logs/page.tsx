@@ -28,21 +28,20 @@ export default function LogsPage() {
   const limit = 50;
 
   useEffect(() => {
+    const loadLogs = async () => {
+      try {
+        const res = await fetch(`/api/logs?limit=${limit}&offset=${page * limit}`);
+        const data = await res.json();
+        setLogs(data.logs || []);
+        setTotal(data.total || 0);
+      } catch (error) {
+        console.error('Failed to load logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadLogs();
-  }, [page]);
-
-  const loadLogs = async () => {
-    try {
-      const res = await fetch(`/api/logs?limit=${limit}&offset=${page * limit}`);
-      const data = await res.json();
-      setLogs(data.logs || []);
-      setTotal(data.total || 0);
-    } catch (error) {
-      console.error('Failed to load logs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [page, limit]);
 
   const formatJSON = (jsonString: string) => {
     try {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Nav from './components/Nav';
 import { useToast } from './components/ToastProvider';
 
@@ -44,33 +44,41 @@ export default function Home() {
   const [showExampleConfig, setShowExampleConfig] = useState(false);
   const { showToast } = useToast();
 
-  useEffect(() => {
-    loadConfig();
-    loadServiceStatus();
-    loadModels();
-    
-    // Poll service status every 2 seconds
-    const interval = setInterval(loadServiceStatus, 2000);
-    
-    return () => clearInterval(interval);
+  const loadConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+      setConfig({
+        port: data.port || '1357',
+        api_key: data.api_key || '',
+      });
+    } catch (error) {
+      console.error('Failed to load config:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('[data-model-selector]')) {
-        setShowModelDropdown(false);
-      }
-    };
-
-    if (showModelDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+  const loadServiceStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/service/status');
+      const data = await res.json();
+      setServiceStatus(prevServiceStatus => {
+        // Clear test result and selected model when service stops
+        if (prevServiceStatus.status === 'running' && data.status === 'stopped') {
+          setTestResult(null);
+          setSelectedModel(null);
+          setModelSearchQuery('');
+          setShowExampleConfig(false);
+        }
+        return data;
+      });
+    } catch (error) {
+      console.error('Failed to load service status:', error);
     }
-  }, [showModelDropdown]);
+  }, []);
 
-  const loadModels = async () => {
+  const loadModels = useCallback(async () => {
     try {
       const res = await fetch('/api/models');
       const data = await res.json();
@@ -86,41 +94,33 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to load models:', error);
     }
-  };
+  }, [selectedModel]);
 
-  const loadConfig = async () => {
-    try {
-      const res = await fetch('/api/config');
-      const data = await res.json();
-      setConfig({
-        port: data.port || '1357',
-        api_key: data.api_key || '',
-      });
-    } catch (error) {
-      console.error('Failed to load config:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    loadConfig();
+    loadServiceStatus();
+    loadModels();
+    
+    // Poll service status every 2 seconds
+    const interval = setInterval(loadServiceStatus, 2000);
+    
+    return () => clearInterval(interval);
+  }, [loadConfig, loadServiceStatus, loadModels]);
 
-  const loadServiceStatus = async () => {
-    try {
-      const res = await fetch('/api/service/status');
-      const data = await res.json();
-      const prevStatus = serviceStatus.status;
-      setServiceStatus(data);
-      
-      // Clear test result and selected model when service stops
-      if (prevStatus === 'running' && data.status === 'stopped') {
-        setTestResult(null);
-        setSelectedModel(null);
-        setModelSearchQuery('');
-        setShowExampleConfig(false);
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-model-selector]')) {
+        setShowModelDropdown(false);
       }
-    } catch (error) {
-      console.error('Failed to load service status:', error);
+    };
+
+    if (showModelDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  };
+  }, [showModelDropdown]);
 
   const handleStart = async () => {
     if (starting || serviceStatus.status === 'running') return;

@@ -10,7 +10,7 @@
     "dev": "next dev -p 9527",
     "build": "next build && tsc",
     "start": "node dist/src/cli/index.js start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "pub": "npm run build && npm publish",
     "type-check": "tsc --noEmit"
   },
@@ -25,25 +25,27 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "better-sqlite3": "^9.2.0",
+    "commander": "^11.1.0",
+    "crypto-js": "^4.2.0",
+    "globals": "^17.0.0",
     "next": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "better-sqlite3": "^9.2.0",
-    "commander": "^11.1.0",
-    "crypto-js": "^4.2.0"
+    "typescript-eslint": "^8.53.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/crypto-js": "^4.2.0",
     "@types/node": "^20.10.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "@types/better-sqlite3": "^7.6.0",
-    "@types/crypto-js": "^4.2.0",
-    "typescript": "^5.3.0",
-    "tailwindcss": "^3.3.0",
     "autoprefixer": "^10.4.0",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.1.1",
     "postcss": "^8.4.0",
-    "eslint": "^8.55.0",
-    "eslint-config-next": "^14.0.0"
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5.3.0"
   },
   "engines": {
     "node": ">=18.0.0"

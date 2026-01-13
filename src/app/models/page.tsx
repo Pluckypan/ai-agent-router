@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Nav from '../components/Nav';
 import { useToast } from '../components/ToastProvider';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -45,11 +45,7 @@ export default function ModelsPage() {
     loadData();
   }, []);
 
-  useEffect(() => {
-    filterModels();
-  }, [models, selectedProviderId, searchQuery]);
-
-  const filterModels = () => {
+  const filterModels = useCallback(() => {
     let filtered = [...models];
 
     // 按供应商筛选
@@ -69,7 +65,11 @@ export default function ModelsPage() {
     }
 
     setFilteredModels(filtered);
-  };
+  }, [models, selectedProviderId, searchQuery]);
+
+  useEffect(() => {
+    filterModels();
+  }, [filterModels]);
 
   const loadData = async () => {
     try {
