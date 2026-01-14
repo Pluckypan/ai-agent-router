@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { existsSync, readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { getDatabase } from '@/db/database';
+import { getConfig } from '@/db/queries';
 
 // Claude settings.json 文件路径
 const CLAUDE_DIR = join(homedir(), '.claude');
@@ -32,11 +34,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 获取当前网关地址
+    // 获取当前网关地址和API Key（从数据库读取）
     const gatewayAddress = getGatewayAddress();
+    const gatewayApiKey = getGatewayApiKey();
 
     // 生成配置对象
-    const config = generateClaudeConfig(gatewayAddress, { haiku, sonnet, opus });
+    const config = generateClaudeConfig(gatewayAddress, gatewayApiKey, { haiku, sonnet, opus });
 
     // 备份原有配置
     const backupResult = backupOriginalConfig();
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
       message: 'Configuration applied successfully',
       config,
       backup: backupResult.existed ? 'Created backup' : 'No existing config to backup',
+      previousWasFromAar: backupResult.existed && backupResult.isFromAar,
     });
   } catch (error: any) {
     console.error('IDE Apply API error:', error);
@@ -77,12 +81,23 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 获取当前网关地址
+ * 获取当前网关地址（从数据库读取）
  */
 function getGatewayAddress(): string {
-  const host = process.env.GATEWAY_HOST || 'localhost';
-  const port = process.env.GATEWAY_PORT || process.env.PORT || '3000';
-  return `http://${host}:${port}`;
+  getDatabase();
+  // 默认端口 1357
+  const portConfig = getConfig('port');
+  const port = portConfig?.value || '1357';
+  return `http://localhost:${port}`;
+}
+
+/**
+ * 获取当前网关 API Key（从数据库读取）
+ */
+function getGatewayApiKey(): string {
+  getDatabase();
+  const apiKeyConfig = getConfig('api_key');
+  return apiKeyConfig?.value || 'your-gateway-api-key';
 }
 
 /**
@@ -90,11 +105,14 @@ function getGatewayAddress(): string {
  */
 function generateClaudeConfig(
   gatewayAddress: string,
+  gatewayApiKey: string,
   modelMapping: { haiku: string; sonnet: string; opus: string }
 ): any {
   return {
+    // 路由提供者标识，标识配置来自当前工具 aar
+    router_provider: 'aar',
     env: {
-      ANTHROPIC_AUTH_TOKEN: process.env.GATEWAY_API_KEY || 'your-gateway-api-key',
+      ANTHROPIC_AUTH_TOKEN: gatewayApiKey,
       ANTHROPIC_BASE_URL: gatewayAddress,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelMapping.haiku,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelMapping.opus,
@@ -110,8 +128,9 @@ function generateClaudeConfig(
 
 /**
  * 备份原有配置
+ * 返回原有配置是否来自当前工具（router_provider === 'aar'）
  */
-function backupOriginalConfig(): { success: boolean; existed: boolean; error?: string } {
+function backupOriginalConfig(): { success: boolean; existed: boolean; isFromAar: boolean; error?: string } {
   try {
     // 检查原有配置是否存在
     const existing = existsSync(SETTINGS_FILE);
@@ -120,17 +139,28 @@ function backupOriginalConfig(): { success: boolean; existed: boolean; error?: s
       // 读取原有配置
       const originalConfig = readFileSync(SETTINGS_FILE, 'utf-8');
 
+      // 解析配置检查 router_provider
+      let isFromAar = false;
+      try {
+        const parsedConfig = JSON.parse(originalConfig);
+        isFromAar = parsedConfig.router_provider === 'aar';
+      } catch (error) {
+        // 解析失败，不影响备份操作
+        isFromAar = false;
+      }
+
       // 写入备份文件
       writeFileSync(BACKUP_FILE, originalConfig, 'utf-8');
 
-      return { success: true, existed: true };
+      return { success: true, existed: true, isFromAar };
     }
 
-    return { success: true, existed: false };
+    return { success: true, existed: false, isFromAar: false };
   } catch (error: any) {
     return {
       success: false,
       existed: false,
+      isFromAar: false,
       error: `Backup failed: ${error.message}`,
     };
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Nav from '../components/Nav';
 import { useToast } from '../components/ToastProvider';
 
@@ -14,8 +14,11 @@ interface ConfigStatus {
   applied: boolean;
   modelMapping: { haiku?: string; sonnet?: string; opus?: string };
   gatewayAddress?: string;
+  apiKey?: string;
   lastUpdated?: string;
   backupExists: boolean;
+  matchCurrentGateway?: boolean;
+  routerProvider?: string; // 路由提供者标识，'aar' 表示配置来自当前工具
 }
 
 export default function IDEConfigPage() {
@@ -27,10 +30,15 @@ export default function IDEConfigPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [applying, setApplying] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [status, setStatus] = useState<ConfigStatus | null>(null);
   const [models, setModels] = useState<Record<string, Model[]>>({});
   const [loading, setLoading] = useState(true);
+  const [testResult, setTestResult] = useState<null | any>(null);
   const { showToast } = useToast();
+
+  // Abort controller for cancelling test
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const loadStatus = async () => {
     try {
@@ -41,8 +49,9 @@ export default function IDEConfigPage() {
         setHaikuModel(data.modelMapping.haiku || 'GLM-4.5-air');
         setSonnetModel(data.modelMapping.sonnet || 'MiniMax-M2.1');
         setOpusModel(data.modelMapping.opus || 'GLM-4.7');
-        setEnabled(true);
       }
+      // 只有当配置来自当前工具（routerProvider === 'aar'）时才设置为 enabled
+      setEnabled(data.applied && data.routerProvider === 'aar');
     } catch (error) {
       console.error('Failed to load status:', error);
     } finally {
@@ -78,13 +87,12 @@ export default function IDEConfigPage() {
         }),
       });
       const data = await res.json();
-      
+
       if (data.success) {
         showToast('配置应用成功', 'success');
-        setEnabled(true);
         await loadStatus();
       } else {
-        showToast("应用失败: " + (data.error || '未知错误'), 'error');
+        showToast('应用失败: ' + (data.error || '未知错误'), 'error');
       }
     } catch (error) {
       console.error('Failed to apply config:', error);
@@ -113,6 +121,52 @@ export default function IDEConfigPage() {
       showToast('还原失败: 网络错误', 'error');
     } finally {
       setRestoring(false);
+    }
+  };
+
+  const handleTest = async () => {
+    // Cancel any ongoing test
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    abortControllerRef.current = new AbortController();
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/ide/claude/test', {
+        signal: abortControllerRef.current.signal,
+      });
+      const data = await res.json();
+
+      setTestResult(data);
+
+      if (data.success) {
+        showToast('配置测试通过', 'success');
+      } else {
+        showToast('配置验证失败: ' + (data.error || data.suggestion || '请检查配置'), 'error');
+      }
+    } catch (error: any) {
+      console.error('Failed to test config:', error);
+      if (error.name === 'AbortError') {
+        showToast('测试已取消', 'info');
+      } else {
+        showToast('测试失败: 网络错误', 'error');
+        setTestResult({ error: 'Network error' });
+      }
+    } finally {
+      if (abortControllerRef.current?.signal.aborted === false) {
+        abortControllerRef.current = null;
+      }
+      setTesting(false);
+    }
+  };
+
+  const handleCancelTest = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
   };
 
@@ -165,25 +219,43 @@ export default function IDEConfigPage() {
               {activeTab === 'claude' && (
                 <div className="space-y-6">
                   {status && (
-                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-xs text-slate-500">状态: </span>
+                          <span className="text-xs text-slate-500">配置状态: </span>
                           <span className={'text-xs font-medium ' + (status.applied ? 'text-emerald-600' : 'text-slate-500')}>
                             {status.applied ? '已应用' : '未配置'}
                           </span>
+                          {status.applied && (
+                            <span className="ml-2">
+                              {status.matchCurrentGateway === true ? (
+                                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800">
+                                  匹配当前网关
+                                </span>
+                              ) : status.matchCurrentGateway === false ? (
+                                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800">
+                                  不匹配当前网关
+                                </span>
+                              ) : null}
+                            </span>
+                          )}
                         </div>
                         {status.lastUpdated && (
                           <div className="text-xs text-slate-400">
-                            最后更新: {new Date(status.lastUpdated).toLocaleString('zh-CN')}
+                            {new Date(status.lastUpdated).toLocaleString('zh-CN')}
                           </div>
                         )}
                       </div>
-                      {status.gatewayAddress && (
-                        <div className="mt-2 text-xs text-slate-500">
-                          网关地址: {status.gatewayAddress}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-slate-500">网关地址: </span>
+                          <span className="font-medium text-slate-700">{status.gatewayAddress || '未设置'}</span>
                         </div>
-                      )}
+                        <div>
+                          <span className="text-slate-500">API Key: </span>
+                          <span className="font-medium text-slate-700">{status.apiKey || '未设置'}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -252,47 +324,161 @@ export default function IDEConfigPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg bg-blue-50 border border-blue-200">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">
-                        启用 Claude Code 代理
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-blue-50 border border-blue-200">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">
+                          应用配置
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          将设置写入 Claude Code
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500">
-                        将配置应用到 Claude Code IDE
-                      </div>
+                      <button
+                        onClick={enabled ? handleRestore : handleApply}
+                        disabled={applying || restoring}
+                        className={
+                          enabled
+                            ? 'inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-rose-500 hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+                            : 'inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+                        }
+                      >
+                        {applying ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {enabled ? '还原中' : '应用中'}
+                          </>
+                        ) : enabled ? '还原配置' : '应用配置'}
+                      </button>
                     </div>
-                    <button
-                      onClick={enabled ? handleRestore : handleApply}
-                      disabled={applying || restoring}
-                      className={
-                        enabled
-                          ? 'inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-rose-500 hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
-                          : 'inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
-                      }
-                    >
-                      {applying ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">
+                          测试配置
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          验证 Claude Code 是否工作
+                        </div>
+                      </div>
+                      {testing ? (
+                        <button
+                          onClick={handleCancelTest}
+                          className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                        >
+                          <svg className="-ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                          应用中
-                        </>
-                      ) : restoring ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          还原中
-                        </>
-                      ) : enabled ? (
-                        '还原配置'
+                          取消测试
+                        </button>
                       ) : (
-                        '应用配置'
+                        <button
+                          onClick={handleTest}
+                          className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                        >
+                          测试连接
+                        </button>
                       )}
-                    </button>
+                    </div>
                   </div>
+
+                  {/* 测试结果展示 */}
+                  {testResult && (
+                    <div className={'p-4 rounded-lg border ' + (
+                      testResult.success
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : 'bg-rose-50 border-rose-200'
+                    )}>
+                      <div className="flex items-center mb-3">
+                        <div className={'text-sm font-semibold ' + (testResult.success ? 'text-emerald-800' : 'text-rose-800')}>
+                          {testResult.success ? '测试通过' : '测试失败'}
+                        </div>
+                      </div>
+
+                      {testResult.checks && (
+                        <div className="space-y-1.5 text-xs mb-3">
+                          {Object.entries(testResult.checks).map(([key, value]) => (
+                            <div key={key} className="flex items-center">
+                              <svg
+                                className={'w-4 h-4 mr-2 ' + (value ? 'text-emerald-600' : 'text-rose-600')}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d={value ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"}
+                                />
+                              </svg>
+                              <span className="text-slate-700">
+                                {key === 'hasBaseUrl' && '网关地址'}
+                                {key === 'hasApiKey' && 'API Key'}
+                                {key === 'hasHaikuModel' && 'Haiku 模型'}
+                                {key === 'hasSonnetModel' && 'Sonnet 模型'}
+                                {key === 'hasOpusModel' && 'Opus 模型'}
+                                {key === 'isFromAar' && '配置来源 (当前工具)'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {testResult.claudeTest && (
+                        <div className="pb-3 border-b border-slate-200/60 mb-3">
+                          <div className={'text-xs font-medium mb-1 ' + (testResult.claudeTest.success ? 'text-emerald-700' : 'text-rose-700')}>
+                            Claude 命令测试 (claude -p "say 'success'"):
+                          </div>
+                          {testResult.claudeTest.success ? (
+                            <div className="text-xs text-emerald-600">
+                              {testResult.claudeTest.message}
+                              {testResult.claudeTest.output && (
+                                <div className="mt-1 text-slate-600">输出: {testResult.claudeTest.output}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-rose-600">{testResult.claudeTest.error}</div>
+                          )}
+                        </div>
+                      )}
+
+                      {testResult.configSummary && (
+                        <div className="text-xs space-y-1">
+                          <div className="text-slate-700">配置预览:</div>
+                          <div className="text-slate-600 pl-6">
+                            • 网关: {testResult.configSummary.baseUrl}
+                          </div>
+                          <div className="text-slate-600 pl-6">
+                            • API Key: {testResult.configSummary.apiKey}
+                          </div>
+                          {testResult.configSummary.routerProvider && (
+                            <div className="text-slate-600 pl-6">
+                              • 配置来源: {testResult.configSummary.routerProvider === 'aar' ? '当前工具' : testResult.configSummary.routerProvider}
+                            </div>
+                          )}
+                          {testResult.configSummary.haikuModel !== 'not set' && (
+                            <div className="text-slate-600 pl-6">
+                              • Haiku: {testResult.configSummary.haikuModel}
+                            </div>
+                          )}
+                          {testResult.configSummary.sonnetModel !== 'not set' && (
+                            <div className="text-slate-600 pl-6">
+                              • Sonnet: {testResult.configSummary.sonnetModel}
+                            </div>
+                          )}
+                          {testResult.configSummary.opusModel !== 'not set' && (
+                            <div className="text-slate-600 pl-6">
+                              • Opus: {testResult.configSummary.opusModel}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <button
@@ -326,8 +512,11 @@ export default function IDEConfigPage() {
                       <pre className="text-xs text-slate-700 overflow-x-auto bg-white p-3 rounded border border-slate-200 max-h-80 overflow-y-auto">
                         {JSON.stringify(
                           {
+                            router_provider: 'aar',
                             env: {
-                              ANTHROPIC_AUTH_TOKEN: 'your-gateway-api-key',
+                              ANTHROPIC_AUTH_TOKEN: status?.apiKey && status.apiKey !== 'your-gateway-api-key'
+                                ? '****' + status.apiKey.slice(-8)
+                                : 'your-gateway-api-key',
                               ANTHROPIC_BASE_URL: status?.gatewayAddress || 'http://localhost:3000',
                               ANTHROPIC_DEFAULT_HAIKU_MODEL: haikuModel,
                               ANTHROPIC_DEFAULT_SONNET_MODEL: sonnetModel,
@@ -352,6 +541,7 @@ export default function IDEConfigPage() {
                       <li>• 点击"应用配置"将设置写入 Claude Code</li>
                       <li>• 配置文件位于 ~/.claude/settings.json</li>
                       <li>• 原有配置会自动备份为 settings.json.aar.bak</li>
+                      <li>• 只有当前工具应用的配置才显示"还原配置"按钮</li>
                       <li>• 点击"还原配置"可恢复到应用前的状态</li>
                     </ul>
                   </div>

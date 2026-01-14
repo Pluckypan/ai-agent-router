@@ -8,6 +8,7 @@ export default function Nav() {
 
   const navItems = [
     { href: '/', label: '配置' },
+    { href: '/ide', label: 'IDE' },
     { href: '/providers', label: '供应商' },
     { href: '/models', label: '模型' },
     { href: '/logs', label: '日志' },
