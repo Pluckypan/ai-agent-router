@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
 
 // Claude settings.json 文件路径
 const CLAUDE_DIR = join(homedir(), '.claude');
@@ -49,41 +49,104 @@ export async function GET(request: NextRequest) {
     const allChecksPassed = Object.values(checks).every(v => v);
 
     // 执行 claude 命令测试
-    let claudeTest = { success: false, message: '', error: '', output: '' };
-    if (allChecksPassed) {
+    const claudeTest = await new Promise<{ success: boolean; message: string; error: string; output: string }>((resolve) => {
+      if (!allChecksPassed) {
+        resolve({ success: false, message: '', error: 'Prerequisite checks failed', output: '' });
+        return;
+      }
+
       try {
         // 首先检查 claude 命令是否存在
         const whichResult = spawnSync('which', ['claude'], { encoding: 'utf-8' });
         if (whichResult.status !== 0) {
-          throw new Error('claude command not found. Please install Claude CLI.');
+          resolve({
+            success: false,
+            message: '',
+            error: 'claude command not found. Please install Claude CLI.',
+            output: '',
+          });
+          return;
         }
+
         console.log('Claude CLI found:', whichResult.stdout.trim());
+        console.log('Executing test command: claude -p "say success"');
 
-        // 执行 claude -p "say 'success'" 命令
-        const testCommand = 'claude -p "say success"';
-        console.log('Executing test command:', testCommand);
-
-        const output = execSync(testCommand, {
-          encoding: 'utf-8',
-          timeout: 180000, // 3 分钟超时
+        const child = spawn('claude', ['-p', 'say success'], {
+          shell: true,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
 
-        claudeTest = {
-          success: true,
-          message: 'Claude command executed successfully',
-          output: output.trim(),
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout?.on('data', (data: Buffer) => {
+          stdout += data.toString();
+        });
+
+        child.stderr?.on('data', (data: Buffer) => {
+          stderr += data.toString();
+        });
+
+        const onAbort = () => {
+          console.log('Request aborted, killing Claude test process...');
+          child.kill('SIGKILL');
         };
+
+        request.signal.addEventListener('abort', onAbort);
+
+        const timeout = setTimeout(() => {
+          child.kill('SIGKILL');
+          resolve({
+            success: false,
+            message: '',
+            error: 'Command timed out after 3 minutes',
+            output: stdout.trim(),
+          });
+        }, 180000);
+
+        child.on('close', (code: number | null) => {
+          clearTimeout(timeout);
+          request.signal.removeEventListener('abort', onAbort);
+          
+          if (code === 0) {
+            resolve({
+              success: true,
+              message: 'Claude command executed successfully',
+              error: '',
+              output: stdout.trim(),
+            });
+          } else {
+            const errorMsg = stderr.trim() || stdout.trim() || `Process exited with code ${code}`;
+            resolve({
+              success: false,
+              message: '',
+              error: `Claude command failed: ${errorMsg}`,
+              output: stdout.trim(),
+            });
+          }
+        });
+
+        child.on('error', (err: Error) => {
+          clearTimeout(timeout);
+          request.signal.removeEventListener('abort', onAbort);
+          resolve({
+            success: false,
+            message: '',
+            error: `Failed to start process: ${err.message}`,
+            output: '',
+          });
+        });
+
       } catch (error: any) {
         console.error('Claude test error:', error);
-        const errorMsg = error.stderr?.trim() || error.stdout?.trim() || error.message || 'Unknown error';
-        claudeTest = {
+        resolve({
           success: false,
-          error: `Claude command failed: ${errorMsg}`,
-          output: error.stdout?.trim() || '',
-        };
+          message: '',
+          error: error.message || 'Unknown error during execution',
+          output: '',
+        });
       }
-    }
+    });
 
     const finalSuccess = claudeTest.success && claudeTest.output?.includes('success');
 
