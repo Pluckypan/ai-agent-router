@@ -10,10 +10,20 @@ import { getDatabase } from '../db/database';
 import { getConfig, setConfig } from '../db/queries';
 
 // 获取 package.json 中的版本号
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const packageJsonPath = join(__dirname, '../..', 'package.json');
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+const packageJsonPath = join(process.cwd(), 'package.json');
+let packageJson: any;
+try {
+  packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+} catch (e) {
+  let currentDir: string;
+  if (typeof __dirname !== 'undefined') {
+    currentDir = __dirname;
+  } else {
+    const meta = (globalThis as any).import?.meta || {};
+    currentDir = meta.url ? dirname(fileURLToPath(meta.url)) : process.cwd();
+  }
+  packageJson = JSON.parse(readFileSync(join(currentDir, '../..', 'package.json'), 'utf-8'));
+}
 
 const program = new Command();
 

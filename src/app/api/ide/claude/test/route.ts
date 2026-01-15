@@ -4,6 +4,9 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { spawnSync, spawn } from 'child_process';
 
+// 强制动态渲染，避免构建时预执行
+export const dynamic = 'force-dynamic';
+
 // Claude settings.json 文件路径
 const CLAUDE_DIR = join(homedir(), '.claude');
 const SETTINGS_FILE = join(CLAUDE_DIR, 'settings.json');

@@ -11,7 +11,7 @@ const SETTINGS_FILE = join(CLAUDE_DIR, 'settings.json');
 const BACKUP_FILE = join(CLAUDE_DIR, 'settings.json.aar.bak');
 
 // 默认模型映射
-export const DEFAULT_MODEL_MAPPING = {
+const DEFAULT_MODEL_MAPPING = {
   haiku: 'GLM-4.5-air',
   sonnet: 'MiniMax-M2.1',
   opus: 'GLM-4.7',
@@ -117,8 +117,8 @@ function generateClaudeConfig(
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelMapping.haiku,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelMapping.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelMapping.sonnet,
-      ANTHROPIC_MODEL: modelMapping.default,
-      ANTHROPIC_REASONING_MODEL: modelMapping.default,
+      ANTHROPIC_MODEL: modelMapping.opus,
+      ANTHROPIC_REASONING_MODEL: modelMapping.opus,
       API_TIMEOUT_MS: '3000000',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
       hasCompletedOnboarding: true,

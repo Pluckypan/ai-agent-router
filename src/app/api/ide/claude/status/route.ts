@@ -11,7 +11,7 @@ const SETTINGS_FILE = join(CLAUDE_DIR, 'settings.json');
 const BACKUP_FILE = join(CLAUDE_DIR, 'settings.json.aar.bak');
 
 // 默认模型映射（与 apply API 保持一致）
-export const DEFAULT_MODEL_MAPPING = {
+const DEFAULT_MODEL_MAPPING = {
   haiku: 'GLM-4.5-air',
   sonnet: 'MiniMax-M2.1',
   opus: 'GLM-4.7',
@@ -23,7 +23,7 @@ type ConfigStatus = {
   modelMapping: { haiku?: string; sonnet?: string; opus?: string };
   gatewayAddress?: string;
   apiKey?: string;
-  lastUpdated?: string;
+  lastUpdated?: string | null;
   backupExists: boolean;
   matchCurrentGateway?: boolean; // 是否匹配当前网关配置
   routerProvider?: string; // 路由提供者标识，'aar' 表示配置来自当前工具
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       gatewayAddress: appliedBaseUrl,
       apiKey: maskApiKey(appliedApiKey || gatewayApiKey),
       backupExists: backupFileExists,
-      lastUpdated: getFileModTime(),
+      lastUpdated: getFileModTime() || null,
       matchCurrentGateway,
       routerProvider: config.router_provider,
     };
@@ -135,12 +135,12 @@ function extractModelMapping(config: any): ConfigStatus['modelMapping'] {
 /**
  * 获取文件修改时间
  */
-function getFileModTime(): string {
+function getFileModTime(): string | null {
   const { statSync } = require('fs');
   try {
     const stats = statSync(SETTINGS_FILE);
     return new Date(stats.mtime).toISOString();
   } catch (error: any) {
-    return undefined;
+    return null;
   }
 }
