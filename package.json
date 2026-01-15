@@ -25,6 +25,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "better-sqlite3": "^9.2.0",
     "commander": "^11.1.0",
     "crypto-js": "^4.2.0",

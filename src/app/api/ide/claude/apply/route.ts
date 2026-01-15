@@ -24,12 +24,12 @@ const DEFAULT_MODEL_MAPPING = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { haiku, sonnet, opus } = body;
+    const { haiku, sonnet, opus, default: defaultModel, reasoning: reasoningModel } = body;
 
-    // 验证请求参数
-    if (haiku === undefined || sonnet === undefined || opus === undefined) {
+    // 验证请求参数 - haiku, sonnet, opus, default, reasoning 都需要
+    if (haiku === undefined || sonnet === undefined || opus === undefined || defaultModel === undefined || reasoningModel === undefined) {
       return NextResponse.json(
-        { error: 'Missing required fields: haiku, sonnet, opus' },
+        { error: 'Missing required fields: haiku, sonnet, opus, default, reasoning' },
         { status: 400 }
       );
     }
@@ -39,7 +39,8 @@ export async function POST(request: NextRequest) {
     const gatewayApiKey = getGatewayApiKey();
 
     // 生成配置对象
-    const config = generateClaudeConfig(gatewayAddress, gatewayApiKey, { haiku, sonnet, opus });
+    const modelMapping = { haiku, sonnet, opus, default: defaultModel, reasoning: reasoningModel };
+    const config = generateClaudeConfig(gatewayAddress, gatewayApiKey, modelMapping);
 
     // 备份原有配置
     const backupResult = backupOriginalConfig();
@@ -106,7 +107,7 @@ function getGatewayApiKey(): string {
 function generateClaudeConfig(
   gatewayAddress: string,
   gatewayApiKey: string,
-  modelMapping: { haiku: string; sonnet: string; opus: string }
+  modelMapping: { haiku: string; sonnet: string; opus: string; default: string; reasoning: string }
 ): any {
   return {
     // 路由提供者标识，标识配置来自当前工具 aar
@@ -117,8 +118,8 @@ function generateClaudeConfig(
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelMapping.haiku,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelMapping.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelMapping.sonnet,
-      ANTHROPIC_MODEL: modelMapping.opus,
-      ANTHROPIC_REASONING_MODEL: modelMapping.opus,
+      ANTHROPIC_MODEL: modelMapping.default,
+      ANTHROPIC_REASONING_MODEL: modelMapping.reasoning,
       API_TIMEOUT_MS: '3000000',
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
       hasCompletedOnboarding: true,

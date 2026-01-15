@@ -20,7 +20,7 @@ const DEFAULT_MODEL_MAPPING = {
 
 type ConfigStatus = {
   applied: boolean;
-  modelMapping: { haiku?: string; sonnet?: string; opus?: string };
+  modelMapping: { haiku?: string; sonnet?: string; opus?: string; default?: string; reasoning?: string };
   gatewayAddress?: string;
   apiKey?: string;
   lastUpdated?: string | null;
@@ -127,6 +127,12 @@ function extractModelMapping(config: any): ConfigStatus['modelMapping'] {
   }
   if (env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
     mapping.opus = env.ANTHROPIC_DEFAULT_OPUS_MODEL;
+  }
+  if (env.ANTHROPIC_MODEL) {
+    mapping.default = env.ANTHROPIC_MODEL;
+  }
+  if (env.ANTHROPIC_REASONING_MODEL) {
+    mapping.reasoning = env.ANTHROPIC_REASONING_MODEL;
   }
 
   return mapping;

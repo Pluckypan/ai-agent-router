@@ -12,7 +12,13 @@ interface Model {
 
 interface ConfigStatus {
   applied: boolean;
-  modelMapping: { haiku?: string; sonnet?: string; opus?: string };
+  modelMapping: {
+    haiku?: string;
+    sonnet?: string;
+    opus?: string;
+    default?: string;
+    reasoning?: string;
+  };
   gatewayAddress?: string;
   apiKey?: string;
   lastUpdated?: string;
@@ -21,11 +27,22 @@ interface ConfigStatus {
   routerProvider?: string; // 路由提供者标识，'aar' 表示配置来自当前工具
 }
 
+interface ModelMappingInput {
+  key: string;
+  label: string;
+  envKey: string;
+  description: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
 export default function IDEConfigPage() {
   const [activeTab, setActiveTab] = useState('claude');
   const [haikuModel, setHaikuModel] = useState('GLM-4.5-air');
   const [sonnetModel, setSonnetModel] = useState('MiniMax-M2.1');
   const [opusModel, setOpusModel] = useState('GLM-4.7');
+  const [defaultModel, setDefaultModel] = useState('GLM-4.7');
+  const [reasoningModel, setReasoningModel] = useState('GLM-4.7');
   const [enabled, setEnabled] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -49,6 +66,8 @@ export default function IDEConfigPage() {
         setHaikuModel(data.modelMapping.haiku || 'GLM-4.5-air');
         setSonnetModel(data.modelMapping.sonnet || 'MiniMax-M2.1');
         setOpusModel(data.modelMapping.opus || 'GLM-4.7');
+        setDefaultModel(data.modelMapping.default || 'GLM-4.7');
+        setReasoningModel(data.modelMapping.reasoning || 'GLM-4.7');
       }
       // 只有当配置来自当前工具（routerProvider === 'aar'）时才设置为 enabled
       setEnabled(data.applied && data.routerProvider === 'aar');
@@ -84,6 +103,8 @@ export default function IDEConfigPage() {
           haiku: haikuModel,
           sonnet: sonnetModel,
           opus: opusModel,
+          default: defaultModel,
+          reasoning: reasoningModel,
         }),
       });
       const data = await res.json();
@@ -114,7 +135,7 @@ export default function IDEConfigPage() {
         showToast('配置已还原', 'success');
         await loadStatus();
       } else {
-        showToast("还原失败: " + (data.error || '未知错误'), 'error');
+        showToast('还原失败: ' + (data.error || '未知错误'), 'error');
       }
     } catch (error) {
       console.error('Failed to restore config:', error);
@@ -274,68 +295,128 @@ export default function IDEConfigPage() {
                 )}
 
                 <div>
-                  <h2 className="text-xs font-medium text-slate-500 mb-3">模型映射</h2>
-                  <div className="space-y-3">
+                  <h2 className="text-[11px] font-medium text-slate-400 mb-5">模型映射</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {[
                       {
                         key: 'haiku',
                         label: 'Haiku',
+                        icon: (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        ),
+                        description: '快速响应',
                         value: haikuModel,
                         onChange: setHaikuModel,
-                        hint: '快速响应'
                       },
                       {
                         key: 'sonnet',
                         label: 'Sonnet',
+                        icon: (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        ),
+                        description: '平衡性能',
                         value: sonnetModel,
                         onChange: setSonnetModel,
-                        hint: '平衡性能'
                       },
                       {
                         key: 'opus',
                         label: 'Opus',
+                        icon: (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 5.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                        ),
+                        description: '深度思考',
                         value: opusModel,
                         onChange: setOpusModel,
-                        hint: '最强能力'
-                      }
+                      },
+                      {
+                        key: 'default',
+                        label: '默认',
+                        icon: (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                        ),
+                        description: '主要模型',
+                        value: defaultModel,
+                        onChange: setDefaultModel,
+                      },
+                      {
+                        key: 'reasoning',
+                        label: '推理',
+                        icon: (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 14.9a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 1.414l-5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                        ),
+                        description: '复杂推理',
+                        value: reasoningModel,
+                        onChange: setReasoningModel,
+                      },
                     ].map((config) => (
-                      <div key={config.key} className="flex items-center gap-3">
-                        <div className="w-20 flex-shrink-0">
-                          <label className="text-xs font-medium text-slate-600">{config.label}</label>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{config.hint}</p>
-                        </div>
-                        <div className="relative flex-1">
-                          <select
-                            value={config.value}
-                            onChange={(e) => config.onChange(e.target.value)}
-                            className="w-full appearance-none rounded-lg border border-slate-200/80 bg-white/80 px-3 py-2 pr-8 text-xs font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300/80 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 focus:outline-none"
-                          >
-                            {Object.entries(models).map(([provider, providerModels]) => (
-                              <optgroup key={provider} label={provider}>
-                                {providerModels.map((model) => (
-                                  <option key={model.id} value={model.model_id}>
-                                    {model.name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            ))}
-                          </select>
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
+                      <div
+                        key={config.key}
+                        className="group relative bg-gradient-to-br from-white/50 to-transparent hover:from-slate-50/60 rounded-xl border border-slate-200/50 p-4 transition-all duration-300 hover:border-slate-300/60 hover:shadow-sm"
+                      >
+                        <label
+                          htmlFor={config.key}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 mb-2.5 relative group/tip">
+                            <div className="w-7 h-7 rounded-lg bg-slate-100/80 text-slate-600 flex items-center justify-center">
+                              {config.icon}
+                            </div>
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-[11px] font-medium text-slate-700">{config.label}</span>
+                            </div>
+                            <div className="absolute left-9 top-0 mt-8 w-28 rounded-lg bg-slate-900/95 backdrop-blur-md px-3 py-2 text-[10px] text-slate-200 shadow-xl opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-200 z-10">
+                              {config.description}
+                            </div>
                           </div>
-                        </div>
+
+                          <div className="relative">
+                            <select
+                              id={config.key}
+                              value={config.value}
+                              onChange={(e) => config.onChange(e.target.value)}
+                              className="w-full appearance-none rounded-lg border border-slate-200/80 bg-white/90 backdrop-blur-sm px-3 py-2 pr-7 text-[11px] font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-300/80 hover:bg-white focus:border-slate-400/80 focus:ring-2 focus:ring-slate-200/50 focus:outline-none cursor-pointer"
+                            >
+                              {Object.entries(models).map(([provider, providerModels]) => (
+                                <optgroup key={provider} label={provider}>
+                                  {providerModels.map((model) => (
+                                    <option key={model.id} value={model.model_id}>
+                                      {model.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] text-slate-500 mt-2.5 group-hover:text-slate-600 transition-colors">
+                            {config.description}
+                          </p>
+                        </label>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-1">
+                <div className="grid grid-cols-2 gap-3 pt-1">
                   <button
                     onClick={enabled ? handleRestore : handleApply}
                     disabled={applying || restoring}
-                    className={`flex-1 px-4 py-2.5 text-xs font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    className={`w-full px-4 py-2.5 text-xs font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                       enabled
                         ? 'bg-white border-slate-200/80 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                         : 'bg-slate-900 border-slate-900 text-white hover:bg-slate-800'
@@ -368,7 +449,7 @@ export default function IDEConfigPage() {
                   {testing ? (
                     <button
                       onClick={handleCancelTest}
-                      className="px-4 py-2.5 text-xs font-medium rounded-lg border border-amber-200/80 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all duration-200 flex items-center justify-center gap-2"
+                      className="w-full px-4 py-2.5 text-xs font-medium rounded-lg border border-amber-200/80 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all duration-200 flex items-center justify-center gap-2"
                     >
                       <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
@@ -379,7 +460,7 @@ export default function IDEConfigPage() {
                   ) : (
                     <button
                       onClick={handleTest}
-                      className="px-4 py-2.5 text-xs font-medium rounded-lg border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 transition-all duration-200 flex items-center justify-center gap-2"
+                      className="w-full px-4 py-2.5 text-xs font-medium rounded-lg border border-slate-200/80 bg-white text-slate-700 hover:bg-slate-50 transition-all duration-200 flex items-center justify-center gap-2"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -427,6 +508,8 @@ export default function IDEConfigPage() {
                                   hasHaikuModel: 'Haiku',
                                   hasSonnetModel: 'Sonnet',
                                   hasOpusModel: 'Opus',
+                                  hasDefaultModel: '默认模型',
+                                  hasReasoningModel: '推理模型',
                                   isFromAar: '来源'
                                 };
                                 return (
@@ -450,12 +533,6 @@ export default function IDEConfigPage() {
 
                         {testResult.claudeTest && (
                           <div className="mt-3 pt-3 border-t border-white/40">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="text-[10px] font-medium text-slate-500">命令测试</span>
-                              <code className="text-[10px] font-mono text-slate-600 bg-white/60 px-1.5 py-0.5 rounded">
-                                claude -p "say 'success'"
-                              </code>
-                            </div>
                             {testResult.claudeTest.success ? (
                               <p className="text-[10px] text-emerald-700">
                                 {testResult.claudeTest.message}
@@ -551,8 +628,11 @@ export default function IDEConfigPage() {
                               ANTHROPIC_DEFAULT_HAIKU_MODEL: haikuModel,
                               ANTHROPIC_DEFAULT_SONNET_MODEL: sonnetModel,
                               ANTHROPIC_DEFAULT_OPUS_MODEL: opusModel,
-                              ANTHROPIC_MODEL: opusModel,
-                              ANTHROPIC_REASONING_MODEL: opusModel,
+                              ANTHROPIC_MODEL: defaultModel,
+                              ANTHROPIC_REASONING_MODEL: reasoningModel,
+                              API_TIMEOUT_MS: '3000000',
+                              CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
+                              hasCompletedOnboarding: true,
                             },
                           },
                           null,
@@ -573,22 +653,26 @@ export default function IDEConfigPage() {
                   <ul className="space-y-1.5 text-[10px] text-slate-600">
                     <li className="flex gap-2">
                       <span className="text-slate-400">1.</span>
-                      <span>选择 Haiku、Sonnet、Opus 对应的模型</span>
+                      <span>为每个模型类别选择对应的路由模型</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">2.</span>
-                      <span>点击"应用配置"将设置写入 Claude Code</span>
+                      <span>下方配置预览会实时更新</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">3.</span>
-                      <span>配置文件位于 ~/.claude/settings.json</span>
+                      <span>点击"应用配置"将设置写入 Claude Code</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">4.</span>
-                      <span>原有配置会自动备份为 settings.json.aar.bak</span>
+                      <span>配置文件位于 ~/.claude/settings.json</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">5.</span>
+                      <span>原有配置会自动备份为 settings.json.aar.bak</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-slate-400">6.</span>
                       <span>点击"还原配置"可恢复到应用前的状态</span>
                     </li>
                   </ul>
