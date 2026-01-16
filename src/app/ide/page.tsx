@@ -48,6 +48,7 @@ export default function IDEConfigPage() {
   const [applying, setApplying] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<ConfigStatus | null>(null);
   const [models, setModels] = useState<Record<string, Model[]>>({});
   const [loading, setLoading] = useState(true);
@@ -188,6 +189,37 @@ export default function IDEConfigPage() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/ide/claude/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          haiku: haikuModel,
+          sonnet: sonnetModel,
+          opus: opusModel,
+          default: defaultModel,
+          reasoning: reasoningModel,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const isTemp = data.saveType === 'temp';
+        showToast(isTemp ? '配置已保存（临时）' : '配置已更新到 Claude Code', 'success');
+        await loadStatus();
+      } else {
+        showToast('保存失败: ' + (data.error || '未知错误'), 'error');
+      }
+    } catch (error) {
+      console.error('Failed to save config:', error);
+      showToast('保存失败: 网络错误', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -412,7 +444,7 @@ export default function IDEConfigPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-3 gap-3 pt-1">
                   <button
                     onClick={enabled ? handleRestore : handleApply}
                     disabled={applying || restoring}
@@ -466,6 +498,54 @@ export default function IDEConfigPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                       </svg>
                       测试配置
+                    </button>
+                  )}
+
+                  {enabled ? (
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="w-full px-4 py-2.5 text-xs font-medium rounded-lg border border-emerald-200/80 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          保存中
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h14a3 3 0 003-3v-1a2 2 0 00-2 2h-1a2 2 0 00-2 2v4.586a2 2 0 002.414 2.414A6.001 6.001 0 0021 12a6 6 0 0021 0 6.001v11.172a6 6 0 01-2.414-2.414A2 2 0 00-2-2h1a2 2 0 002 1.732V18a2 2 0 002 2zM16.5 9a1.5 1.5 0 100-3 1.5 1.5 0 01-3 0H13v1.5a.5.5 0 00-1 1zm-9 5.5L11 8.5 8.5 6.5h-4A1.5 1.5 0 00-3 0l-4-2 1.5 1.5 0 003 0h4A1.5 1.5 0 003 1.5L16.5 9z" />
+                          </svg>
+                          保存配置
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="w-full px-4 py-2.5 text-xs font-medium rounded-lg border border-indigo-200/80 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          保存中
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v10a2 2 0 002 2h3v6a1 1 0 010 1h6a2 2 0 002-2V9a2 2 0 00-2-2zm0 10a2 2 0 002-2v5a1 1 0 001-1h-1a2 2 0 00-2 2v7h3a1 1 0 001-1H8z" />
+                          </svg>
+                          保存配置
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -661,18 +741,22 @@ export default function IDEConfigPage() {
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">3.</span>
-                      <span>点击"应用配置"将设置写入 Claude Code</span>
+                      <span>点击"保存配置"可临时保存当前选择</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">4.</span>
-                      <span>配置文件位于 ~/.claude/settings.json</span>
+                      <span>点击"应用配置"将设置写入 Claude Code</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">5.</span>
-                      <span>原有配置会自动备份为 settings.json.aar.bak</span>
+                      <span>配置文件位于 ~/.claude/settings.json</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-slate-400">6.</span>
+                      <span>临时配置保存在 ~/.aar/settings.tmp.json</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-slate-400">7.</span>
                       <span>点击"还原配置"可恢复到应用前的状态</span>
                     </li>
                   </ul>

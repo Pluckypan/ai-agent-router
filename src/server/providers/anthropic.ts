@@ -64,20 +64,22 @@ export class AnthropicAdapter implements ProviderAdapter {
       apiKeyPrefix: apiKey ? apiKey.substring(0, 10) + '...' : 'none',
     });
 
-    // Prepare headers
+    // Prepare headers - include both x-api-key and Authorization for compatibility
     const headers: Record<string, string> = {
       'x-api-key': apiKey,
+      'Authorization': `Bearer ${apiKey}`, // Standard Authorization header for custom gateways
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
       ...request.headers,
     };
     delete headers['host'];
     delete headers['connection'];
-    delete headers['authorization'];
+    // Don't delete the Authorization header since we're setting it here
 
     console.log('[Anthropic Adapter] Request headers:', {
       'Content-Type': headers['Content-Type'],
-      'x-api-key': headers['x-api-key'] ? '***' : 'none',
+      'x-api-key': headers['x-api-key'] ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}` : 'none',
+      'Authorization': headers['Authorization'] ? `Bearer ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}` : 'none',
       'anthropic-version': headers['anthropic-version'],
     });
 

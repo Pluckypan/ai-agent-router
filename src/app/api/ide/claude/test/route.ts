@@ -96,6 +96,13 @@ export async function GET(request: NextRequest) {
       const testWithSDK = async () => {
         const startTime = Date.now();
 
+        console.log('[IDE Test] Starting SDK test with config:', {
+          rawBaseUrl: baseUrl,
+          rawApiKeyPrefix: apiKey ? apiKey.substring(0, 8) + '...' : 'none',
+          rawApiKeyLength: apiKey?.length || 0,
+          model,
+        });
+
         // Normalize baseUrl
         // 对于 model-router.meitu.com 不添加 /v1 后缀，其他 API 需要添加
         let normalizedBaseUrl = (baseUrl || 'https://api.anthropic.com').trim().replace(/\/+$/, '');
@@ -104,11 +111,60 @@ export async function GET(request: NextRequest) {
           normalizedBaseUrl = normalizedBaseUrl + '/v1';
         }
 
+        console.log('[IDE Test] Normalized base URL:', {
+          normalizedBaseUrl,
+          isCustomGateway,
+          willAddV1Path: !isCustomGateway && !normalizedBaseUrl.endsWith('/v1'),
+        });
+
         try {
+          // Custom fetch to ensure Authorization header is properly set for custom gateway
+          const customFetch: Fetch = async (input, init = {}) => {
+            const url = typeof input === 'string' ? input : input.toString();
+            const targetUrl = new URL(url, normalizedBaseUrl);
+
+            console.log('[IDE Test] Custom fetch called:', {
+              url: targetUrl.toString(),
+              originalMethod: init.method,
+              hasApiKey: !!apiKey,
+              originalHeaders: Object.keys(init.headers || {}),
+            });
+
+            // Ensure Authorization header is set correctly
+            const headers = {
+              ...init.headers,
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey, // Some gateways require this header
+            };
+
+            console.log('[IDE Test] Request headers being sent:', {
+              'Authorization': headers['Authorization'] ? `Bearer ${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}` : 'MISSING',
+              'x-api-key': headers['x-api-key'] ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}` : 'MISSING',
+              'Content-Type': headers['Content-Type'],
+            });
+
+            const response = await fetch(targetUrl, {
+              ...init,
+              headers,
+            });
+
+            console.log('[IDE Test] Response received:', {
+              status: response.status,
+              statusText: response.statusText,
+              headers: Object.fromEntries(response.headers.entries()),
+            });
+
+            return response;
+          };
+
           const anthropic = new Anthropic({
             baseURL: normalizedBaseUrl,
             apiKey: apiKey,
+            fetch: customFetch,
           });
+
+          console.log('[IDE Test] Calling anthropic.messages.create() with model:', model);
 
           const response = await anthropic.messages.create({
             model: model,
@@ -120,6 +176,13 @@ export async function GET(request: NextRequest) {
           request.signal.removeEventListener('abort', onAbort);
 
           const latency = Date.now() - startTime;
+
+          console.log('[IDE Test] SDK test success:', {
+            latency,
+            usage: response.usage,
+            model: response.model,
+            responseId: response.id,
+          });
 
           resolve({
             success: true,
@@ -136,6 +199,15 @@ export async function GET(request: NextRequest) {
         } catch (error: any) {
           clearTimeout(timeout);
           request.signal.removeEventListener('abort', onAbort);
+
+          console.error('[IDE Test] SDK test failed with error:', {
+            name: error.name,
+            message: error.message,
+            cause: error.cause,
+            status: error.status,
+            errorType: error.type,
+            stack: error.stack?.substring(0, 500),
+          });
 
           resolve({
             success: false,

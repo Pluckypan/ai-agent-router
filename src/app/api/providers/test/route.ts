@@ -89,7 +89,13 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error: any) {
-    console.error('Test connection error:', error);
+    console.error('Test connection error:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.substring(0, 500),
+      cause: error.cause,
+      status: error.status,
+    });
 
     // Handle specific error types
     let errorMessage = '连接失败';
@@ -99,6 +105,8 @@ export async function POST(request: NextRequest) {
       errorMessage = '无法连接到服务器，请检查 Base URL 和网络连接';
     } else if (error.message.includes('ENOTFOUND') || error.message.includes('DNS')) {
       errorMessage = 'DNS 解析失败，请检查 Base URL';
+    } else if (error.message.includes('Authorization') || error.message?.toLowerCase().includes('401')) {
+      errorMessage = 'Authorization header 缺失或无效';
     } else {
       errorMessage = error.message || '连接失败，请检查配置';
     }
