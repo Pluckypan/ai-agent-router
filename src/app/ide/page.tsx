@@ -529,7 +529,8 @@ export default function IDEConfigPage() {
                       ) : (
                         <>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM18 9l-4-4H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
                           </svg>
                           保存配置
                         </>
@@ -552,7 +553,8 @@ export default function IDEConfigPage() {
                       ) : (
                         <>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM18 9l-4-4H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
                           </svg>
                           保存配置
                         </>
