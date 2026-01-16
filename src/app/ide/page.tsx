@@ -25,6 +25,13 @@ interface ConfigStatus {
   backupExists: boolean;
   matchCurrentGateway?: boolean;
   routerProvider?: string; // 路由提供者标识，'aar' 表示配置来自当前工具
+  tempMapping?: {
+    haiku?: string;
+    sonnet?: string;
+    opus?: string;
+    default?: string;
+    reasoning?: string;
+  }; // 临时配置模型映射
 }
 
 interface ModelMappingInput {
@@ -63,12 +70,16 @@ export default function IDEConfigPage() {
       const res = await fetch('/api/ide/claude/status');
       const data: ConfigStatus = await res.json();
       setStatus(data);
-      if (data.applied && data.modelMapping) {
-        setHaikuModel(data.modelMapping.haiku || 'GLM-4.5-air');
-        setSonnetModel(data.modelMapping.sonnet || 'MiniMax-M2.1');
-        setOpusModel(data.modelMapping.opus || 'GLM-4.7');
-        setDefaultModel(data.modelMapping.default || 'GLM-4.7');
-        setReasoningModel(data.modelMapping.reasoning || 'GLM-4.7');
+      // 优先使用临时配置（如果存在），否则使用已应用的配置
+      const mappingToUse = (data.matchCurrentGateway === false && data.tempMapping)
+        ? data.tempMapping
+        : data.modelMapping;
+      if (mappingToUse) {
+        setHaikuModel(mappingToUse.haiku || 'GLM-4.5-air');
+        setSonnetModel(mappingToUse.sonnet || 'MiniMax-M2.1');
+        setOpusModel(mappingToUse.opus || 'GLM-4.7');
+        setDefaultModel(mappingToUse.default || 'GLM-4.7');
+        setReasoningModel(mappingToUse.reasoning || 'GLM-4.7');
       }
       // 只有当配置来自当前工具（routerProvider === 'aar'）时才设置为 enabled
       setEnabled(data.applied && data.routerProvider === 'aar');
@@ -518,7 +529,7 @@ export default function IDEConfigPage() {
                       ) : (
                         <>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h14a3 3 0 003-3v-1a2 2 0 00-2 2h-1a2 2 0 00-2 2v4.586a2 2 0 002.414 2.414A6.001 6.001 0 0021 12a6 6 0 0021 0 6.001v11.172a6 6 0 01-2.414-2.414A2 2 0 00-2-2h1a2 2 0 002 1.732V18a2 2 0 002 2zM16.5 9a1.5 1.5 0 100-3 1.5 1.5 0 01-3 0H13v1.5a.5.5 0 00-1 1zm-9 5.5L11 8.5 8.5 6.5h-4A1.5 1.5 0 00-3 0l-4-2 1.5 1.5 0 003 0h4A1.5 1.5 0 003 1.5L16.5 9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM18 9l-4-4H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9z" />
                           </svg>
                           保存配置
                         </>
@@ -541,7 +552,7 @@ export default function IDEConfigPage() {
                       ) : (
                         <>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v10a2 2 0 002 2h3v6a1 1 0 010 1h6a2 2 0 002-2V9a2 2 0 00-2-2zm0 10a2 2 0 002-2v5a1 1 0 001-1h-1a2 2 0 00-2 2v7h3a1 1 0 001-1H8z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM18 9l-4-4H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9z" />
                           </svg>
                           保存配置
                         </>

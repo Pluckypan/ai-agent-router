@@ -10,6 +10,10 @@ const CLAUDE_DIR = join(homedir(), '.claude');
 const SETTINGS_FILE = join(CLAUDE_DIR, 'settings.json');
 const BACKUP_FILE = join(CLAUDE_DIR, 'settings.json.aar.bak');
 
+// AAR 临时配置文件
+const AAR_DIR = join(homedir(), '.aar');
+const TEMP_SETTINGS_FILE = join(AAR_DIR, 'settings.tmp.json');
+
 // 默认模型映射（与 apply API 保持一致）
 const DEFAULT_MODEL_MAPPING = {
   haiku: 'GLM-4.5-air',
@@ -27,6 +31,7 @@ type ConfigStatus = {
   backupExists: boolean;
   matchCurrentGateway?: boolean; // 是否匹配当前网关配置
   routerProvider?: string; // 路由提供者标识，'aar' 表示配置来自当前工具
+  tempMapping?: { haiku?: string; sonnet?: string; opus?: string; default?: string; reasoning?: string }; // 临时配置模型映射
 };
 
 /**
@@ -75,6 +80,24 @@ export async function GET(request: NextRequest) {
     const appliedApiKey = config.env?.ANTHROPIC_AUTH_TOKEN;
     const matchCurrentGateway = appliedBaseUrl === gatewayAddress && appliedApiKey === gatewayApiKey;
 
+    // 如果不匹配当前网关，尝试读取临时配置
+    let tempMapping: ConfigStatus['tempMapping'] = {};
+    if (!matchCurrentGateway) {
+      const tempFileExists = existsSync(TEMP_SETTINGS_FILE);
+      if (tempFileExists) {
+        try {
+          const tempContent = readFileSync(TEMP_SETTINGS_FILE, 'utf-8');
+          const tempConfig = JSON.parse(tempContent);
+          if (tempConfig.modelMapping) {
+            tempMapping = tempConfig.modelMapping;
+            console.log('[IDE Status] Loading temporary config:', tempMapping);
+          }
+        } catch (error) {
+          console.error('[IDE Status] Failed to parse temp config:', error);
+        }
+      }
+    }
+
     // 提取配置状态
     const status: ConfigStatus = {
       applied: true,
@@ -85,6 +108,7 @@ export async function GET(request: NextRequest) {
       lastUpdated: getFileModTime() || null,
       matchCurrentGateway,
       routerProvider: config.router_provider,
+      tempMapping,
     };
 
     return NextResponse.json(status);
