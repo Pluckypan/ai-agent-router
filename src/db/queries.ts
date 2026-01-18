@@ -89,6 +89,17 @@ export function getModelByModelId(providerId: number, modelId: string): Model | 
   return db.prepare('SELECT * FROM models WHERE provider_id = ? AND model_id = ?').get(providerId, modelId) as Model | null;
 }
 
+// Find a model by model_id across all providers (for gateway auto-routing)
+export function getModelByModelIdAny(modelId: string): (Model & { provider: Provider }) | null {
+  const db = getDatabase();
+  return db.prepare(`
+    SELECT m.*, p.id as provider_id, p.name as provider_name, p.protocol, p.base_url, p.api_key
+    FROM models m
+    JOIN providers p ON m.provider_id = p.id
+    WHERE m.model_id = ? AND m.enabled = 1
+  `).get(modelId) as any;
+}
+
 export function createModel(model: Omit<Model, 'id' | 'created_at' | 'updated_at'>): Model {
   const db = getDatabase();
   const stmt = db.prepare(`

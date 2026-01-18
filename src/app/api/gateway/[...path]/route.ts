@@ -78,12 +78,13 @@ async function handleRequest(
       }
     }
     
-    // If still no model, try to get from body
+    // If still no model, try to get from body (Anthropic standard: model in body)
     if (!modelId && body) {
       modelId = body.model || body.model_id;
     }
     const bodyProvider = body?.provider;
 
+    // Only error if still no modelID after checking all sources
     if (!modelId) {
       return NextResponse.json(
         { error: { message: 'Model ID not specified' } },
@@ -92,6 +93,13 @@ async function handleRequest(
     }
 
     // Build gateway request
+    console.log('[Gateway Route] Building request:', {
+      originalUrl: request.url,
+      method,
+      pathArray: params.path,
+      joinedPath: path,
+      finalPath: '/' + path,
+    });
     const gatewayRequest = {
       method,
       path: '/' + path,

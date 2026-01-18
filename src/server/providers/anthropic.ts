@@ -33,10 +33,18 @@ export class AnthropicAdapter implements ProviderAdapter {
     
     // Normalize baseUrl
     baseUrl = baseUrl.trim().replace(/\/+$/, ''); // Remove trailing slashes
-    
+
     // Build the target URL
     let targetPath = request.path;
-    
+
+    console.log('[Anthropic Adapter] Path processing START:', {
+      inputBaseUrl: model.provider.base_url,
+      originalRequestPath: request.path,
+      hasPath: !!request.path,
+      pathLength: request.path?.length,
+      pathPrefix: request.path?.substring(0, 20),
+    });
+
     // If path is root or empty, default to messages endpoint
     if (!targetPath || targetPath === '/' || targetPath === '') {
       targetPath = 'messages';
@@ -44,15 +52,20 @@ export class AnthropicAdapter implements ProviderAdapter {
       targetPath = targetPath.substring(4);
     } else if (targetPath.startsWith('/')) {
       targetPath = targetPath.substring(1);
+    } else if (targetPath.startsWith('v1/')) {
+      // Handle case where path is "v1/messages" without leading slash
+      targetPath = targetPath.substring(3);
     }
-    
-    // Ensure baseUrl ends with /v1
-    if (!baseUrl.endsWith('/v1')) {
-      baseUrl = baseUrl + '/v1';
-    }
-    
+
+    // Don't force /v1 suffix - let each provider's base_url handle the version path
+    // For example: zhipu uses /v4, openai uses /v1, etc.
     const url = `${baseUrl}/${targetPath}`;
-    
+
+    console.log('[Anthropic Adapter] Path processing result:', {
+      targetPathAfter: targetPath,
+      finalUrl: url,
+    });
+
     console.log('[Anthropic Adapter] Forwarding request:', {
       baseUrl: model.provider.base_url,
       normalizedBaseUrl: baseUrl,

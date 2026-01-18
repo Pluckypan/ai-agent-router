@@ -120,11 +120,22 @@ export async function GET(request: NextRequest) {
         try {
           // Custom fetch to ensure Authorization header is properly set for custom gateway
           const customFetch: Fetch = async (input, init = {}) => {
-            const url = typeof input === 'string' ? input : input.toString();
-            const targetUrl = new URL(url, normalizedBaseUrl);
+            const urlStr = typeof input === 'string' ? input : input.toString();
 
             console.log('[IDE Test] Custom fetch called:', {
-              url: targetUrl.toString(),
+              rawUrl: urlStr,
+              baseUrl: normalizedBaseUrl,
+              inputType: typeof input,
+            });
+
+            // If URL is already absolute (contains http:// or https://), use it directly
+            // This is how the SDK works when baseURL is set
+            const targetUrl = urlStr.startsWith('http://') || urlStr.startsWith('https://')
+              ? urlStr
+              : new URL(urlStr, normalizedBaseUrl).toString();
+
+            console.log('[IDE Test] Final target URL:', {
+              targetUrl,
               originalMethod: init.method,
               hasApiKey: !!apiKey,
               originalHeaders: Object.keys(init.headers || {}),

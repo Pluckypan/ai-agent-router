@@ -1,4 +1,4 @@
-import { getAllProviders } from '@/db/queries';
+import { getAllProviders, getModelByModelIdAny } from '@/db/queries';
 import { getProviderAdapter } from './providers';
 import { logRequest } from './logger';
 import type { GatewayRequest, GatewayResponse } from './providers/types';
@@ -19,36 +19,55 @@ export async function handleGatewayRequest(
   });
 
   try {
-    // Provider name is required for gateway requests
+    let providerNameToUse = providerName;
+    let requestedModelId = modelId;
+
+    // If provider is not specified, try to auto-route by model_id
     if (!providerName) {
-      console.log(`[Gateway ${requestId}] Provider name not specified`);
-      return {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: { 
-          error: { 
-            message: 'Provider name is required. Please specify provider parameter.',
-            type: 'missing_provider',
-          } 
-        },
-      };
+      console.log(`[Gateway ${requestId}] Provider not specified, attempting auto-routing by model_id:`, modelId);
+
+      // Try to extract model_id from request body if available
+      if (request.body?.model) {
+        requestedModelId = request.body.model;
+        console.log(`[Gateway ${requestId}] Using model_id from request body:`, requestedModelId);
+      }
+
+      // Find model in database by model_id
+      const modelWithProvider = getModelByModelIdAny(requestedModelId);
+
+      if (!modelWithProvider) {
+        console.log(`[Gateway ${requestId}] Model not found in database:`, requestedModelId);
+        return {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+          body: {
+            error: {
+              message: `Model "${requestedModelId}" not found or not enabled. Please configure the model in the Gateway settings first.`,
+              type: 'model_not_found',
+            },
+          },
+        };
+      }
+
+      providerNameToUse = modelWithProvider.provider_name;
+      console.log(`[Gateway ${requestId}] Auto-routed model "${requestedModelId}" to provider:`, providerNameToUse);
     }
 
     // Find the provider by name
     const providers = getAllProviders();
-    const provider = providers.find(p => p.name.toLowerCase() === providerName.toLowerCase());
-    
+    const provider = providers.find(p => p.name.toLowerCase() === providerNameToUse!.toLowerCase());
+
     if (!provider) {
-      console.log(`[Gateway ${requestId}] Provider not found:`, providerName);
+      console.log(`[Gateway ${requestId}] Provider not found:`, providerNameToUse);
       const availableProviders = providers.map(p => p.name).join(', ');
       return {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
-        body: { 
-          error: { 
-            message: `Provider "${providerName}" not found. Available providers: ${availableProviders || 'none'}`,
+        body: {
+          error: {
+            message: `Provider "${providerNameToUse}" not found. Available providers: ${availableProviders || 'none'}`,
             type: 'provider_not_found',
-          } 
+          },
         },
       };
     }
@@ -66,8 +85,8 @@ export async function handleGatewayRequest(
     const model = {
       id: 0, // Not used for gateway requests
       provider_id: provider.id,
-      name: modelId, // Use model_id as name for logging
-      model_id: modelId, // User-provided model ID
+      name: requestedModelId, // Use requested model_id as name for logging
+      model_id: requestedModelId, // User-provided model ID
       enabled: true, // Always enabled for gateway requests
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -87,7 +106,7 @@ export async function handleGatewayRequest(
     console.log(`[Gateway ${requestId}] Forwarding request with:`, {
       provider: provider.name,
       protocol: provider.protocol,
-      modelId: modelId,
+      modelId: requestedModelId,
     });
     
     const response = await adapter.forwardRequest(model as any, request);
